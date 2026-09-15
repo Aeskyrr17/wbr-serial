@@ -1,11 +1,22 @@
 {
   "build": {
-    "usbx": false
+    "usbx": true
   },
   "bindings": {
     "remoter_uart": "uart5",
     "vt03_uart": "usart1",
-    "referee_uart": "usart1"
+    "referee_uart": "usart1",
+    "uart_ports": {
+      "tof": "uart7"
+    },
+    "can_buses": {
+      "gimbal_link": {
+        "bus": "fdcan3",
+        "rx_header": "0xB2",
+        "tx_header": "0xC1"
+      },
+      "supercap": "fdcan3"
+    }
   },
   "can": {
     "fdcan1": {
@@ -20,7 +31,7 @@
   },
   "ahrs": {
     "solver": "quaternion_ekf",
-    "imu_offset_x": 0,
+    "imu_offset_x": 0.2,
     "imu_thread_priority": 3,
     "temp_thread_priority": 4,
     "target_temp": 45
@@ -35,8 +46,8 @@
     "thread_priority": 8
   },
   "test": {
-    "auto_run_on_boot": true,
-    "imu": true,
+    "auto_run_on_boot": false,
+    "imu": false,
     "usart": false,
     "usb": false,
     "can": false,

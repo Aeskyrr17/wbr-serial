@@ -1,0 +1,291 @@
+#include "robot.hpp"
+
+#include "ahrs.hpp"
+#include "aux_control.hpp"
+#include "bsp_dwt.hpp"
+#include "chassis.hpp"
+#include "chassis_model.hpp"
+#include "chassis_ui.hpp"
+#include "command.hpp"
+#include "motorservice.hpp"
+#include "motortraits.hpp"
+#include "referee.hpp"
+#include "robot_config.hpp"
+#include "robot_debug.hpp"
+#include "robot_io.hpp"
+#include "robot_topics.hpp"
+#include "tx_api.h"
+
+#include <cstdint>
+
+namespace robot::application
+{
+namespace
+{
+TX_THREAD control_thread{};
+TX_THREAD command_thread{};
+TX_THREAD ui_thread{};
+alignas(8) std::uint8_t control_stack[6144]{};
+alignas(8) std::uint8_t command_stack[4096]{};
+alignas(8) std::uint8_t ui_stack[2048]{};
+
+
+using l_joint1_motor_type =
+    robot::devices::motors::model_type_t<robot::motors::l_joint1_model>;
+using l_joint4_motor_type =
+    robot::devices::motors::model_type_t<robot::motors::l_joint4_model>;
+using r_joint1_motor_type =
+    robot::devices::motors::model_type_t<robot::motors::r_joint1_model>;
+using r_joint4_motor_type =
+    robot::devices::motors::model_type_t<robot::motors::r_joint4_model>;
+using l_wheel_motor_type =
+    robot::devices::motors::model_type_t<robot::motors::l_wheel_model>;
+using r_wheel_motor_type =
+    robot::devices::motors::model_type_t<robot::motors::r_wheel_model>;
+using trigger_motor_type =
+    robot::devices::motors::model_type_t<robot::motors::trigger_model>;
+using yaw_motor_type =
+    robot::devices::motors::model_type_t<robot::motors::yaw_model>;
+
+l_joint1_motor_type l_joint1{robot::motors::l_joint1};
+l_joint4_motor_type l_joint4{robot::motors::l_joint4};
+r_joint1_motor_type r_joint1{robot::motors::r_joint1};
+r_joint4_motor_type r_joint4{robot::motors::r_joint4};
+l_wheel_motor_type l_wheel{robot::motors::l_wheel};
+r_wheel_motor_type r_wheel{robot::motors::r_wheel};
+trigger_motor_type trigger{robot::motors::trigger};
+yaw_motor_type yaw{robot::motors::yaw};
+::motors::motor_service motor_service{};
+
+msg::subscriber imu_sub{};
+msg::subscriber command_sub{};
+msg::subscriber state_sub{};
+msg::subscriber ui_state_sub{};
+msg::subscriber command_referee_sub{};
+msg::subscriber ui_referee_sub{};
+command::referee_summary referee_data{};
+bool started = false;
+
+void referee_update(const referee::packet_store& packets,
+    const referee::update_info& update) noexcept
+{
+    if (!update.got_valid_frame || !update.is_known_packet) return;
+    switch (update.command_id)
+    {
+    case RefereeID::GameRobotStatus:
+        referee_data.robot_id = packets.game_robot_status.robot_id;
+        referee_data.robot_level = packets.game_robot_status.robot_level;
+        referee_data.heat_limit = packets.game_robot_status.shooter_barrel_heat_limit;
+        referee_data.chassis_power_limit = packets.game_robot_status.chassis_power_limit;
+        referee_data.chassis_power_enabled =
+            packets.game_robot_status.power_management_chassis_output != 0U;
+        break;
+    case RefereeID::PowerHeatData:
+        referee_data.power_buffer = packets.power_heat_data.chassis_power_buffer;
+        referee_data.heat_now = packets.power_heat_data.shoot_id1_17mm_cooling_heat;
+        break;
+    case RefereeID::Buff:
+        referee_data.remained_energy = packets.buff.remained_energy;
+        break;
+    case RefereeID::RobotHurt:
+        referee_data.hurt_armor_id = packets.robot_hurt.armor_id;
+        referee_data.hurt_reason = packets.robot_hurt.HP_deduction_reason;
+        break;
+    default:
+        break;
+    }
+    (void)msg::publish(topics::referee, referee_data, {false, false});
+}
+
+bool register_motors() noexcept
+{
+    return motor_service.register_motor(l_joint1) && motor_service.register_motor(l_joint4) &&
+           motor_service.register_motor(r_joint1) && motor_service.register_motor(r_joint4) &&
+           motor_service.register_motor(l_wheel) && motor_service.register_motor(r_wheel) &&
+           motor_service.register_motor(trigger) && motor_service.register_motor(yaw);
+}
+
+void copy_feedback(::motors::feedback& l1, ::motors::feedback& l4, ::motors::feedback& r1,
+                   ::motors::feedback& r4, ::motors::feedback& lw, ::motors::feedback& rw,
+                   ::motors::feedback& trigger_fdb, ::motors::feedback& yaw_fdb) noexcept
+{
+    const UINT previous = tx_interrupt_control(TX_INT_DISABLE);
+    l1 = l_joint1.get_feedback(); l4 = l_joint4.get_feedback();
+    r1 = r_joint1.get_feedback(); r4 = r_joint4.get_feedback();
+    lw = l_wheel.get_feedback(); rw = r_wheel.get_feedback();
+    trigger_fdb = trigger.get_feedback(); yaw_fdb = yaw.get_feedback();
+    tx_interrupt_control(previous);
+}
+
+void control_entry(ULONG) noexcept
+{
+    chassis::controller chassis_control{};
+    aux::controller aux_control{};
+    ::imu::state imu{};
+    command_frame command{};
+    robot_state state{};
+    std::uint32_t loop_count = 0;
+    std::uint64_t last_start = bsp::dwt::timeline_us();
+    bool motors_started = false;
+    if (!register_motors()) for (;;) tx_thread_sleep(100U);
+
+    for (;;)
+    {
+        const auto start_us = bsp::dwt::timeline_us();
+        robot_debug.runtime.period_us = static_cast<std::uint32_t>(start_us - last_start);
+        last_start = start_us;
+        ::imu::state next_imu{};
+        if (msg::read(imu_sub, next_imu) == types::status::ok) imu = next_imu;
+        command_frame next_command{};
+        if (msg::read(command_sub, next_command) == types::status::ok) command = next_command;
+
+        ::motors::feedback l1{}, l4{}, r1{}, r4{}, lw{}, rw{}, trigger_fdb{}, yaw_fdb{};
+        copy_feedback(l1, l4, r1, r4, lw, rw, trigger_fdb, yaw_fdb);
+        if (++loop_count % 3U == 0U) motor_service.alive_check();
+
+        chassis::input input{};
+        input.cmd = command.chassis;
+        input.left = leg_input{l1.position, l4.position, l1.velocity, l4.velocity, l1.torque, l4.torque};
+        input.right = leg_input{r1.position, r4.position, r1.velocity, r4.velocity, r1.torque, r4.torque};
+        for (unsigned i = 0; i < 4U; ++i) input.quaternion[i] = imu.quaternion[i];
+        input.accel[0] = imu.accel_x; input.accel[1] = imu.accel_y; input.accel[2] = imu.accel_z;
+        input.pitch = imu.pitch; input.roll = imu.roll; input.yaw = imu.total_yaw;
+        input.dpitch = imu.gyro_p; input.droll = imu.gyro_r; input.dyaw = imu.gyro_y;
+        input.l_wheel_velocity = lw.velocity; input.r_wheel_velocity = rw.velocity;
+        const auto now = static_cast<std::uint32_t>(tx_time_get());
+        input.imu_valid = imu.online && imu.sequence != 0U && now - imu.received_tick <= 100U;
+        input.wheels_online = l_wheel.status() == ::motors::state::online &&
+                              r_wheel.status() == ::motors::state::online;
+        const auto output = chassis_control.step(input, state);
+        const auto aux_out = aux_control.step(command.aux, state, yaw_fdb, trigger_fdb);
+        state.yaw_feedback = yaw_fdb.position;
+        state.yaw_target = command.chassis.yaw;
+        state.yaw_ready = aux_out.yaw_ready;
+
+        // This migration build starts with output disabled. No enable/current/MIT
+        // frame is sent until a hardware-validation session explicitly opts in.
+        if (robot_tuning.motor_output_enabled)
+        {
+            if (!motors_started)
+                motors_started = motor_service.start() == types::status::ok;
+            if (motors_started)
+            {
+                // RELAX is enabled zero-MIT, not the DM protocol disable frame.
+                l_joint1.set_mit(0.0f, 0.0f, 0.0f, 0.0f, output.l_joint1);
+                l_joint4.set_mit(0.0f, 0.0f, 0.0f, 0.0f, output.l_joint4);
+                r_joint1.set_mit(0.0f, 0.0f, 0.0f, 0.0f, output.r_joint1);
+                r_joint4.set_mit(0.0f, 0.0f, 0.0f, 0.0f, output.r_joint4);
+                l_wheel.set_current(static_cast<std::int16_t>(-output.Twl * chassis::model::wheel_current_per_nm));
+                r_wheel.set_current(static_cast<std::int16_t>(output.Twr * chassis::model::wheel_current_per_nm));
+                yaw.set_current(aux_out.yaw_current);
+                trigger.set_current(aux_out.trigger_current);
+                motor_service.send_control();
+            }
+        }
+        else if (motors_started)
+        {
+            l_joint1.set_mit(0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+            l_joint4.set_mit(0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+            r_joint1.set_mit(0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+            r_joint4.set_mit(0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+            l_wheel.set_current(0); r_wheel.set_current(0);
+            yaw.set_current(0); trigger.set_current(0);
+            motor_service.send_control();
+            motor_service.stop();
+            motors_started = false;
+        }
+        (void)msg::publish(topics::state, state);
+
+        const auto exec = static_cast<std::uint32_t>(bsp::dwt::timeline_us() - start_us);
+        robot_debug.runtime.exec_us = exec;
+        if (exec > robot_debug.runtime.max_exec_us) robot_debug.runtime.max_exec_us = exec;
+        if (exec > 1000U) ++robot_debug.runtime.overrun_count;
+        tx_thread_sleep(1U);
+    }
+}
+
+void command_entry(ULONG) noexcept
+{
+    command::mapper mapper{};
+    io::gimbal_command raw{};
+    io::tof_sample tof{};
+    robot_state state{};
+    command::referee_summary referee{};
+    if (io::init() != types::status::ok) for (;;) tx_thread_sleep(100U);
+    for (;;)
+    {
+        io::gimbal_command next_raw{};
+        if (io::read_command(next_raw)) raw = next_raw;
+        io::tof_sample next_tof{};
+        if (io::read_tof(next_tof)) tof = next_tof;
+        robot_state next_state{};
+        if (msg::read(state_sub, next_state) == types::status::ok) state = next_state;
+        command::referee_summary next_referee{};
+        if (msg::read(command_referee_sub, next_referee) == types::status::ok)
+            referee = next_referee;
+        const auto frame = mapper.step(raw, tof, referee, state,
+                                       static_cast<std::uint32_t>(tx_time_get()));
+        (void)msg::publish(topics::command, frame);
+        tx_thread_sleep(1U);
+    }
+}
+
+void ui_entry(ULONG) noexcept
+{
+    display::chassis_ui display{};
+    robot_state state{};
+    io::gimbal_ui gimbal{};
+    command::referee_summary referee{};
+    if (!display.init()) for (;;) tx_thread_sleep(100U);
+    for (;;)
+    {
+        robot_state next{};
+        if (msg::read(ui_state_sub, next) == types::status::ok) state = next;
+        io::gimbal_ui next_ui{};
+        if (io::read_ui(next_ui)) gimbal = next_ui;
+        command::referee_summary next_referee{};
+        if (msg::read(ui_referee_sub, next_referee) == types::status::ok)
+            referee = next_referee;
+        display.update(state, gimbal, referee);
+        tx_thread_sleep(100U);
+    }
+}
+}
+
+types::status start() noexcept
+{
+    if (started) return types::status::ok;
+    if (!bsp::dwt::initialized()) (void)bsp::dwt::init();
+    if (!topics::init()) return types::status::error;
+    if (ahrs::service::instance().init() != types::status::ok) return types::status::error;
+    referee::config referee_cfg{};
+    referee_cfg.on_update_callback = referee::update_callback::bind<&referee_update>();
+    if (referee::service::instance().init(referee_cfg) != types::status::ok)
+        return types::status::error;
+    imu_sub = msg::subscribe(ahrs::service::instance().output());
+    command_sub = msg::subscribe(topics::command);
+    state_sub = msg::subscribe(topics::state);
+    ui_state_sub = msg::subscribe(topics::state);
+    command_referee_sub = msg::subscribe(topics::referee);
+    ui_referee_sub = msg::subscribe(topics::referee);
+    if (!imu_sub.valid() || !command_sub.valid() || !state_sub.valid() ||
+        !ui_state_sub.valid() || !command_referee_sub.valid() ||
+        !ui_referee_sub.valid())
+        return types::status::error;
+    if (tx_thread_create(&control_thread, const_cast<CHAR*>("robot_control"), control_entry, 0U,
+                         control_stack, sizeof(control_stack), 6U, 6U, TX_NO_TIME_SLICE,
+                         TX_AUTO_START) != TX_SUCCESS)
+        return types::status::error;
+    if (tx_thread_create(&command_thread, const_cast<CHAR*>("robot_command"), command_entry, 0U,
+                         command_stack, sizeof(command_stack), 7U, 7U, TX_NO_TIME_SLICE,
+                         TX_AUTO_START) != TX_SUCCESS)
+        return types::status::error;
+    if (tx_thread_create(&ui_thread, const_cast<CHAR*>("robot_ui"), ui_entry, 0U,
+                         ui_stack, sizeof(ui_stack), 9U, 9U, TX_NO_TIME_SLICE,
+                         TX_AUTO_START) != TX_SUCCESS)
+        return types::status::error;
+    started = true;
+    return types::status::ok;
+}
+
+} // namespace robot::application

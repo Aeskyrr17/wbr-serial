@@ -141,6 +141,16 @@ file(GLOB_RECURSE PNX_EMBEDDED_SOURCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/diagnose/*.cpp"
 )
 
+# The migrated wheel-legged application is the H723 product. Keep the shared
+# libraries buildable for F4 without H723-only generated motor bindings.
+if(PNX_BOARD STREQUAL "h723_mc02")
+    set(WBR_APPLICATION 1)
+else()
+    set(WBR_APPLICATION 0)
+    list(FILTER PNX_EMBEDDED_SOURCES EXCLUDE REGEX "[/\\\\]app[/\\\\](chassis|command|io|auxiliary|ui)[/\\\\]")
+    list(FILTER PNX_EMBEDDED_SOURCES EXCLUDE REGEX "[/\\\\]app[/\\\\]robot(_debug|_topics)?\\.cpp$")
+endif()
+
 if(NOT ENABLE_USART_TEST)
     list(FILTER PNX_EMBEDDED_SOURCES EXCLUDE REGEX "/diagnose/usart/")
 endif()
@@ -267,6 +277,29 @@ set(CMSIS_DSP_SOURCES
 
 add_executable(${PROJECT_NAME})
 
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(WBR_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated/wbr")
+set(WBR_GENERATED_LQR "${WBR_GENERATED_DIR}/lqr_coeffs.hpp")
+set(WBR_GENERATED_KINEMATICS "${WBR_GENERATED_DIR}/kinematics.hpp")
+set(WBR_MODEL_REPORT "${WBR_GENERATED_DIR}/model-report.json")
+if(WBR_APPLICATION)
+add_custom_command(
+    OUTPUT "${WBR_GENERATED_LQR}" "${WBR_GENERATED_KINEMATICS}" "${WBR_MODEL_REPORT}"
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/model/generate.py"
+            --mode legacy --output-dir "${WBR_GENERATED_DIR}"
+    DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/model/generate.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/model/model_params.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/model/dynamics.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/model/kinematics.py"
+        "${CMAKE_CURRENT_SOURCE_DIR}/app/chassis/legacy_lqr_coeffs.hpp"
+    VERBATIM
+)
+add_custom_target(wbr_model DEPENDS
+    "${WBR_GENERATED_LQR}" "${WBR_GENERATED_KINEMATICS}" "${WBR_MODEL_REPORT}")
+add_dependencies(${PROJECT_NAME} wbr_model)
+endif()
+
 add_subdirectory("${PNX_BOARD_CUBEMX_DIR}" "${CMAKE_BINARY_DIR}/stm32cubemx")
 if(PNX_BOARD_FAMILY STREQUAL "stm32f4")
     # F4 tx_application_define registers a stack-error callback before app startup.
@@ -305,6 +338,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     PNX_DMA_DEDICATED_SECTION=${PNX_DMA_DEDICATED_SECTION}
     PNX_DMA_CACHE_LINE_SIZE=${PNX_DMA_CACHE_LINE_SIZE}
     ROBOT_MOTOR_COUNT=${robot_motor_count}
+    WBR_APPLICATION=${WBR_APPLICATION}
 )
 
 target_link_libraries(${PROJECT_NAME}

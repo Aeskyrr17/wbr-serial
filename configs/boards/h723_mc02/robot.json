@@ -21,26 +21,68 @@
       },
       "list": [
         {
-          "name": "motor1",
-          "model": "dji_gm6020",
-          "can_bus": "fdcan2",
-          "can_type": "classic",
-          "can_id": "0x205"
+          "name": "l_joint1",
+          "model": "dm_dm8009p",
+          "can_bus": "fdcan1",
+          "can_type": "fd",
+          "can_id": "0x02",
+          "control_mode": "mit"
         },
         {
-          "name": "motor2",
-          "model": "dm_dm4310",
+          "name": "l_joint4",
+          "model": "dm_dm8009p",
           "can_bus": "fdcan1",
           "can_type": "fd",
           "can_id": "0x01",
           "control_mode": "mit"
         },
         {
-          "name": "motor3",
-          "model": "dji_gm6020",
+          "name": "r_joint4",
+          "model": "dm_dm8009p",
           "can_bus": "fdcan1",
           "can_type": "fd",
-          "can_id": "0x206"
+          "can_id": "0x03",
+          "control_mode": "mit"
+        },
+        {
+          "name": "r_joint1",
+          "model": "dm_dm8009p",
+          "can_bus": "fdcan1",
+          "can_type": "fd",
+          "can_id": "0x04",
+          "control_mode": "mit"
+        },
+        {
+          "name": "l_wheel",
+          "model": "dji_xroll",
+          "can_bus": "fdcan2",
+          "can_type": "classic",
+          "can_id": "0x201",
+          "control_mode": "relax"
+        },
+        {
+          "name": "r_wheel",
+          "model": "dji_xroll",
+          "can_bus": "fdcan2",
+          "can_type": "classic",
+          "can_id": "0x202",
+          "control_mode": "relax"
+        },
+        {
+          "name": "trigger",
+          "model": "dji_m2006",
+          "can_bus": "fdcan2",
+          "can_type": "classic",
+          "can_id": "0x203",
+          "control_mode": "current"
+        },
+        {
+          "name": "yaw",
+          "model": "dji_gm6020",
+          "can_bus": "fdcan2",
+          "can_type": "classic",
+          "can_id": "0x205",
+          "control_mode": "current"
         }
       ]
     }
