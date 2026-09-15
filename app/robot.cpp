@@ -5,7 +5,6 @@
 #include "bsp_dwt.hpp"
 #include "chassis.hpp"
 #include "chassis_model.hpp"
-#include "chassis_ui.hpp"
 #include "command.hpp"
 #include "motorservice.hpp"
 #include "motortraits.hpp"
@@ -24,10 +23,8 @@ namespace
 {
 TX_THREAD control_thread{};
 TX_THREAD command_thread{};
-TX_THREAD ui_thread{};
 alignas(8) std::uint8_t control_stack[6144]{};
 alignas(8) std::uint8_t command_stack[4096]{};
-alignas(8) std::uint8_t ui_stack[2048]{};
 
 
 using l_joint1_motor_type =
@@ -60,9 +57,7 @@ yaw_motor_type yaw{robot::motors::yaw};
 msg::subscriber imu_sub{};
 msg::subscriber command_sub{};
 msg::subscriber state_sub{};
-msg::subscriber ui_state_sub{};
 msg::subscriber command_referee_sub{};
-msg::subscriber ui_referee_sub{};
 command::referee_summary referee_data{};
 bool started = false;
 
@@ -230,26 +225,6 @@ void command_entry(ULONG) noexcept
     }
 }
 
-void ui_entry(ULONG) noexcept
-{
-    display::chassis_ui display{};
-    robot_state state{};
-    io::gimbal_ui gimbal{};
-    command::referee_summary referee{};
-    if (!display.init()) for (;;) tx_thread_sleep(100U);
-    for (;;)
-    {
-        robot_state next{};
-        if (msg::read(ui_state_sub, next) == types::status::ok) state = next;
-        io::gimbal_ui next_ui{};
-        if (io::read_ui(next_ui)) gimbal = next_ui;
-        command::referee_summary next_referee{};
-        if (msg::read(ui_referee_sub, next_referee) == types::status::ok)
-            referee = next_referee;
-        display.update(state, gimbal, referee);
-        tx_thread_sleep(100U);
-    }
-}
 }
 
 types::status start() noexcept
@@ -265,12 +240,9 @@ types::status start() noexcept
     imu_sub = msg::subscribe(ahrs::service::instance().output());
     command_sub = msg::subscribe(topics::command);
     state_sub = msg::subscribe(topics::state);
-    ui_state_sub = msg::subscribe(topics::state);
     command_referee_sub = msg::subscribe(topics::referee);
-    ui_referee_sub = msg::subscribe(topics::referee);
     if (!imu_sub.valid() || !command_sub.valid() || !state_sub.valid() ||
-        !ui_state_sub.valid() || !command_referee_sub.valid() ||
-        !ui_referee_sub.valid())
+        !command_referee_sub.valid())
         return types::status::error;
     if (tx_thread_create(&control_thread, const_cast<CHAR*>("robot_control"), control_entry, 0U,
                          control_stack, sizeof(control_stack), 6U, 6U, TX_NO_TIME_SLICE,
@@ -278,10 +250,6 @@ types::status start() noexcept
         return types::status::error;
     if (tx_thread_create(&command_thread, const_cast<CHAR*>("robot_command"), command_entry, 0U,
                          command_stack, sizeof(command_stack), 7U, 7U, TX_NO_TIME_SLICE,
-                         TX_AUTO_START) != TX_SUCCESS)
-        return types::status::error;
-    if (tx_thread_create(&ui_thread, const_cast<CHAR*>("robot_ui"), ui_entry, 0U,
-                         ui_stack, sizeof(ui_stack), 9U, 9U, TX_NO_TIME_SLICE,
                          TX_AUTO_START) != TX_SUCCESS)
         return types::status::error;
     started = true;

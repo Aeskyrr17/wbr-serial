@@ -22,7 +22,6 @@ struct mailbox
 };
 
 mailbox<gimbal_command> command_box{};
-mailbox<gimbal_ui> ui_box{};
 mailbox<tof_sample> tof_box{};
 mailbox<supercap_feedback> supercap_box{};
 bsp::dma::buffer<64> tof_dma BSP_DMA_BUFFER{};
@@ -79,18 +78,6 @@ void can_rx(bsp::can::bus bus, const bsp::can::rx_frame& frame) noexcept
         value.sequence = command_box.value.sequence + 1U;
         value.received_tick = static_cast<std::uint32_t>(tx_time_get());
         store(command_box, value);
-    }
-    else if (frame.id == 0xB1U)
-    {
-        gimbal_ui value{};
-        value.reset = (frame.data[0] & 0x01U) != 0U;
-        value.fire = (frame.data[0] & 0x02U) != 0U;
-        value.bullet_frequency = (frame.data[0] & 0x04U) != 0U;
-        value.aim_rune = (frame.data[0] & 0x08U) != 0U;
-        value.aim_target = frame.data[0] >> 4U;
-        value.aim_x = frame.data[1];
-        value.aim_y = frame.data[2];
-        store(ui_box, value);
     }
     else if (frame.id == 0xB4U)
     {
@@ -155,7 +142,6 @@ types::status init() noexcept
 }
 
 bool read_command(gimbal_command& output) noexcept { return load(command_box, output); }
-bool read_ui(gimbal_ui& output) noexcept { return load(ui_box, output); }
 bool read_tof(tof_sample& output) noexcept { return load(tof_box, output); }
 bool read_supercap(supercap_feedback& output) noexcept { return load(supercap_box, output); }
 

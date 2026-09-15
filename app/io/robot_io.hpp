@@ -26,17 +26,6 @@ struct gimbal_command
     std::uint32_t received_tick = 0;
 };
 
-struct gimbal_ui
-{
-    bool reset = false;
-    bool fire = false;
-    bool bullet_frequency = false;
-    bool aim_rune = false;
-    std::uint8_t aim_target = 0;
-    std::uint8_t aim_x = 0;
-    std::uint8_t aim_y = 0;
-};
-
 struct tof_sample
 {
     float distance_cm = 0.0f;
@@ -59,7 +48,6 @@ struct supercap_feedback
 
 types::status init() noexcept;
 bool read_command(gimbal_command& output) noexcept;
-bool read_ui(gimbal_ui& output) noexcept;
 bool read_tof(tof_sample& output) noexcept;
 bool read_supercap(supercap_feedback& output) noexcept;
 types::status send_chassis_status(bool initialized, bool red, std::uint8_t level,

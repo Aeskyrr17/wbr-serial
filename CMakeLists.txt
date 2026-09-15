@@ -155,6 +155,11 @@ if(NOT ENABLE_USART_TEST)
     list(FILTER PNX_EMBEDDED_SOURCES EXCLUDE REGEX "/diagnose/usart/")
 endif()
 
+if(NOT ENABLE_REFEREE_UI_TEST)
+    list(FILTER PNX_EMBEDDED_SOURCES EXCLUDE REGEX "[/\\\\]diagnose[/\\\\]referee_ui[/\\\\]")
+    list(FILTER PNX_EMBEDDED_SOURCES EXCLUDE REGEX "[/\\\\]pnx_devices[/\\\\]ui[/\\\\]")
+endif()
+
 if(NOT ENABLE_USBX)
     pnx_exclude_bsp_module(PNX_EMBEDDED_SOURCES usb)
     list(FILTER PNX_EMBEDDED_SOURCES EXCLUDE REGEX "[/\\\\]diagnose[/\\\\]usb[/\\\\]")

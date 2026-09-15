@@ -8,7 +8,6 @@
 | --- | --- | --- |
 | Pendulum，1 ms | `robot_control`，优先级 6，6144 B | 采样、odom/VMC/LQR/状态机、8 台电机命令和一次统一发送 |
 | Function，1 ms | `robot_command`，优先级 7，4096 B | CAN3/TOF/裁判摘要到 command/aux 目标、功率策略 |
-| UI，100 ms | `robot_ui`，优先级 9，2048 B | 只读状态、B1、TOF、SuperCap 和裁判摘要并更新完整旧场景 canvas |
 | ins | 现有 `ahrs::service` | AHRS 发布；control 订阅并用 `online/sequence/received_tick` 判断新鲜度 |
 | referee | 现有 `referee::service` | 回调仅按已知有效包复制持久摘要 |
 | cmd/pendulum | `msg::channel<command_frame>` / `msg::channel<robot_state>` | command/control 各写自己的 channel |
@@ -25,12 +24,12 @@ CAN/UART 回调只做固定大小 mailbox 或 TOF 流解析，不调用带 Threa
 | r_joint4 / r_joint1 | DM8009P，FDCAN1 FD，0x03 / 0x04；反馈 master 0x07 / 0x08（`master_id_base=0x05`） |
 | l_wheel / r_wheel | XRoll，FDCAN2 Classic，0x201 / 0x202 |
 | trigger / yaw | M2006 0x203 / GM6020 0x205，FDCAN2 Classic |
-| command / UI | FDCAN3 RX 0xB2 / 0xB1，显式小端解码 |
+| command | FDCAN3 RX 0xB2，显式小端解码 |
 | chassis status | FDCAN3 TX 0xC1，显式位打包 |
 | SuperCap | FDCAN3 RX 0xB4 / TX 0xC5 |
 | TOF | UART7，0x59 0x59、9 字节、流式拆包和校验 |
 
-B1/B2/C1 的 golden sample 用 ARM GNU 13.3 对旧 packed 结构生成。B2 示例为 `55 2E FB FB 07 02 F7 00`；对应 move/spin/stair/gimbal-only，yaw=-1234、vx=-5、vy=7、len=2、trigger=-9。C1 示例为 `1F CB 7F 34 12 00 00 00`。
+B2/C1 的 golden sample 用 ARM GNU 13.3 对旧 packed 结构生成。B2 示例为 `55 2E FB FB 07 02 F7 00`；对应 move/spin/stair/gimbal-only，yaw=-1234、vx=-5、vy=7、len=2、trigger=-9。C1 示例为 `1F CB 7F 34 12 00 00 00`。产品 UI 和 B1 UI 数据链在运动调试阶段暂不迁移；通用 Referee 服务保持不变。
 
 ## 控制兼容与明确修复
 
