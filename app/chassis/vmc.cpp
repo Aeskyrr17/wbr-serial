@@ -71,10 +71,10 @@ bool vmc::resolve(float phi1, float phi4) noexcept
     return true;
 }
 
-std::array<float, 2> vmc::velocity(float q1, float q4) const noexcept
+std::array<float, 2> vmc::velocity(float dphi1, float dphi4) const noexcept
 {
-    return {state_.J[0] * q1 + state_.J[1] * q4,
-            state_.J[2] * q1 + state_.J[3] * q4};
+    return {state_.J[0] * dphi1 + state_.J[1] * dphi4,
+            state_.J[2] * dphi1 + state_.J[3] * dphi4};
 }
 
 std::array<float, 2> vmc::joint_torque(float force, float torque) const noexcept

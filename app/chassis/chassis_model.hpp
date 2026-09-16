@@ -16,7 +16,11 @@ inline constexpr float wheel_radius = 0.06f;
 inline constexpr float wheel_track = 0.43f;
 inline constexpr float wheel_mass = 0.21f;
 inline constexpr float body_mass = 14.0f;
-inline constexpr float wheel_current_per_nm = 1400.0f;
+// Legacy DM8009P feedback scaled velocity by its 1:9 reducer while leaving
+// position and torque in the raw protocol scale.
+inline constexpr float joint_velocity_feedback_scale = 1.0f / 9.0f;
+// Legacy wheel torque -> DJI command-count scale; not amperes per Nm.
+inline constexpr float wheel_current_scale = 1400.0f;
 inline constexpr float max_wheel_torque = 10.0f;
 inline constexpr float max_joint_torque = 40.0f;
 inline constexpr float spring_force = 250.0f;

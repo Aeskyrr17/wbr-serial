@@ -77,7 +77,14 @@ class WbrModelTest(unittest.TestCase):
         # ARM GCC 13.3 sample: move/spin/stair/gimbal-only, yaw=-1234,
         # vx=-5, vy=7, len=2, trigger=-9.
         command = bytes([0x55, 0x2E, 0xFB, 0xFB, 0x07, 0x02, 0xF7, 0x00])
-        self.assertEqual(command[0] & 0x55, 0x55)
+        flags = command[0]
+        self.assertTrue(flags & 0x01)   # move level
+        self.assertFalse(flags & 0x02)  # want jump pulse
+        self.assertTrue(flags & 0x04)   # spin level
+        self.assertFalse(flags & 0x08)  # want turn pulse
+        self.assertTrue(flags & 0x10)   # want stair pulse
+        self.assertFalse(flags & 0x20)  # want fly pulse
+        self.assertTrue(flags & 0x40)   # gimbal-only level
         self.assertEqual(int.from_bytes(command[1:3], "little", signed=True), -1234)
         bits = 1 | 2 | (7 << 2) | (300 << 6) | (255 << 15) | (0x1234 << 24)
         self.assertEqual(bits.to_bytes(8, "little").hex(), "1fcb7f3412000000")

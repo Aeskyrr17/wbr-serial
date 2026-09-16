@@ -23,7 +23,7 @@ struct robot_tuning_t
     pid_tuning len_startup{5000.0f, 0.0f, -1500.0f, 125.0f, 0.0f};
     pid_tuning len_run{2000.0f, 0.0f, -400.0f, 125.0f, 0.0f};
     pid_tuning roll{0.5f, 0.0f, 0.0f, 0.05f, 0.005f};
-    pid_tuning trigger{100.0f, 0.0f, 0.0f, 10000.0f, 0.0f};
+    pid_tuning trigger{3600.0f, 0.0f, 0.0f, 10000.0f, 0.0f};
     pid_tuning phi_recover{20.0f, 0.0f, 10.0f, 40.0f, 0.005f};
     pid_tuning phi_flatten_fast{10.0f, 0.0f, 5.0f, 40.0f, 0.005f};
     pid_tuning phi_flatten_slow{5.0f, 0.0f, 10.0f, 40.0f, 0.005f};
@@ -37,6 +37,8 @@ struct chassis_debug
     leg_state left{};
     leg_state right{};
     chassis_output output{};
+    float l_phi_ref = 0.0f;
+    float r_phi_ref = 0.0f;
     float obs[10]{};
     float ref[10]{};
     float roll = 0.0f;
@@ -52,17 +54,17 @@ struct command_debug
     float power_limit = 0.0f;
     float power_buffer = 0.0f;
     std::uint32_t link_age_ticks = 0;
-    std::uint32_t event_drop_count = 0;
     bool link_online = false;
+    bool jump_armed = false;
 };
 
 struct aux_debug
 {
-    float yaw_target_current = 0.0f;
-    float yaw_feedback_position = 0.0f;
-    float yaw_feedback_velocity = 0.0f;
-    float trigger_target_rotor_velocity = 0.0f;
-    float trigger_feedback_rotor_velocity = 0.0f;
+    float yaw_ref_current = 0.0f;
+    float yaw_fdb_pos = 0.0f;
+    float yaw_fdb_vel = 0.0f;
+    float trigger_ref_vel = 0.0f;
+    float trigger_fdb_vel = 0.0f;
     float trigger_current = 0.0f;
     bool yaw_ready = false;
 };
@@ -70,6 +72,10 @@ struct aux_debug
 struct io_debug
 {
     std::uint32_t command_sequence = 0;
+    std::uint32_t want_jump_count = 0;
+    std::uint32_t want_turn_count = 0;
+    std::uint32_t want_stair_count = 0;
+    std::uint32_t want_fly_count = 0;
     std::uint32_t tof_sequence = 0;
     std::uint32_t supercap_sequence = 0;
     bool tof_valid = false;

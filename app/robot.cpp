@@ -100,16 +100,22 @@ bool register_motors() noexcept
            motor_service.register_motor(trigger) && motor_service.register_motor(yaw);
 }
 
-void copy_feedback(::motors::feedback& l1, ::motors::feedback& l4, ::motors::feedback& r1,
-                   ::motors::feedback& r4, ::motors::feedback& lw, ::motors::feedback& rw,
-                   ::motors::feedback& trigger_fdb, ::motors::feedback& yaw_fdb) noexcept
+motor_feedback_snapshot copy_feedback() noexcept
 {
-    const UINT previous = tx_interrupt_control(TX_INT_DISABLE);
-    l1 = l_joint1.get_feedback(); l4 = l_joint4.get_feedback();
-    r1 = r_joint1.get_feedback(); r4 = r_joint4.get_feedback();
-    lw = l_wheel.get_feedback(); rw = r_wheel.get_feedback();
-    trigger_fdb = trigger.get_feedback(); yaw_fdb = yaw.get_feedback();
-    tx_interrupt_control(previous);
+    motor_feedback_snapshot fdb{};
+    const UINT prev_interrupts = tx_interrupt_control(TX_INT_DISABLE);
+    fdb.l_joint1 = l_joint1.get_feedback();
+    fdb.l_joint4 = l_joint4.get_feedback();
+    fdb.r_joint1 = r_joint1.get_feedback();
+    fdb.r_joint4 = r_joint4.get_feedback();
+    fdb.l_wheel = l_wheel.get_feedback();
+    fdb.r_wheel = r_wheel.get_feedback();
+    fdb.trigger = trigger.get_feedback();
+    fdb.yaw = yaw.get_feedback();
+    fdb.wheels_online = l_wheel.status() == ::motors::state::online &&
+                        r_wheel.status() == ::motors::state::online;
+    tx_interrupt_control(prev_interrupts);
+    return fdb;
 }
 
 void control_entry(ULONG) noexcept
@@ -134,27 +140,13 @@ void control_entry(ULONG) noexcept
         command_frame next_command{};
         if (msg::read(command_sub, next_command) == types::status::ok) command = next_command;
 
-        ::motors::feedback l1{}, l4{}, r1{}, r4{}, lw{}, rw{}, trigger_fdb{}, yaw_fdb{};
-        copy_feedback(l1, l4, r1, r4, lw, rw, trigger_fdb, yaw_fdb);
         if (++loop_count % 3U == 0U) motor_service.alive_check();
-
-        chassis::input input{};
-        input.cmd = command.chassis;
-        input.left = leg_input{l1.position, l4.position, l1.velocity, l4.velocity, l1.torque, l4.torque};
-        input.right = leg_input{r1.position, r4.position, r1.velocity, r4.velocity, r1.torque, r4.torque};
-        for (unsigned i = 0; i < 4U; ++i) input.quaternion[i] = imu.quaternion[i];
-        input.accel[0] = imu.accel_x; input.accel[1] = imu.accel_y; input.accel[2] = imu.accel_z;
-        input.pitch = imu.pitch; input.roll = imu.roll; input.yaw = imu.total_yaw;
-        input.dpitch = imu.gyro_p; input.droll = imu.gyro_r; input.dyaw = imu.gyro_y;
-        input.l_wheel_velocity = lw.velocity; input.r_wheel_velocity = rw.velocity;
+        const auto fdb = copy_feedback();
         const auto now = static_cast<std::uint32_t>(tx_time_get());
-        input.imu_valid = imu.online && imu.sequence != 0U && now - imu.received_tick <= 100U;
-        input.wheels_online = l_wheel.status() == ::motors::state::online &&
-                              r_wheel.status() == ::motors::state::online;
-        const auto output = chassis_control.step(input, state);
-        const auto aux_out = aux_control.step(command.aux, state, yaw_fdb, trigger_fdb);
-        state.yaw_feedback = yaw_fdb.position;
-        state.yaw_target = command.chassis.yaw;
+        const auto output = chassis_control.step(imu, fdb, command.chassis, now, state);
+        const auto aux_out = aux_control.step(command.aux, state, fdb.yaw, fdb.trigger);
+        state.yaw_fdb = fdb.yaw.position;
+        state.yaw_ref = command.chassis.yaw;
         state.yaw_ready = aux_out.yaw_ready;
 
         // This migration build starts with output disabled. No enable/current/MIT
@@ -170,8 +162,8 @@ void control_entry(ULONG) noexcept
                 l_joint4.set_mit(0.0f, 0.0f, 0.0f, 0.0f, output.l_joint4);
                 r_joint1.set_mit(0.0f, 0.0f, 0.0f, 0.0f, output.r_joint1);
                 r_joint4.set_mit(0.0f, 0.0f, 0.0f, 0.0f, output.r_joint4);
-                l_wheel.set_current(static_cast<std::int16_t>(-output.Twl * chassis::model::wheel_current_per_nm));
-                r_wheel.set_current(static_cast<std::int16_t>(output.Twr * chassis::model::wheel_current_per_nm));
+                l_wheel.set_current(static_cast<std::int16_t>(-output.Twl * chassis::model::wheel_current_scale));
+                r_wheel.set_current(static_cast<std::int16_t>(output.Twr * chassis::model::wheel_current_scale));
                 yaw.set_current(aux_out.yaw_current);
                 trigger.set_current(aux_out.trigger_current);
                 motor_service.send_control();

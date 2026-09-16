@@ -21,7 +21,7 @@ public:
                 const motors::feedback& yaw, const motors::feedback& trigger) noexcept;
 
 private:
-    control::pid trigger_pid_{100.0f, 0.0f, 0.0f, 10000.0f, 0.0f};
+    control::pid trigger_pid_{3600.0f, 0.0f, 0.0f, 10000.0f, 0.0f};
     bool yaw_ready_ = false;
     bool first_init_tried_ = false;
 };

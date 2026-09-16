@@ -33,6 +33,7 @@ private:
     control::slope vx_ramp_{0.0f, 0.006f};
     control::slope vy_ramp_{0.0f, 0.006f};
     action_events events_{};
+    io::gimbal_wants handled_wants_{};
     float held_x_ = 0.0f;
     float held_yaw_ = 0.0f;
     float spin_phase_ = 0.0f;
@@ -41,10 +42,7 @@ private:
     bool hold_x_ = false;
     bool hold_yaw_ = false;
     bool jump_armed_ = false;
-    bool previous_jump_ = false;
-    bool previous_stair_ = false;
-    bool previous_fly_ = false;
-    bool previous_spin_ = false;
+    bool prev_spin_ = false;
 };
 
 } // namespace robot::command

@@ -42,21 +42,25 @@ output controller::step(const aux_command& command, const robot_state& chassis,
     }
     else
     {
-        out.yaw_current = command.yaw_current;
-        trigger_pid_.ref = command.trigger_rotor_velocity;
-        // PnX M2006 feedback is reducer-side; legacy PID used rotor-side rad/s.
-        trigger_pid_.fdb = trigger.velocity * 36.0f;
+        const std::int32_t yaw_current = static_cast<std::int32_t>(command.yaw_current) +
+                                         (command.spin ? 5000 : 0);
+        out.yaw_current = static_cast<std::int16_t>(
+            std::clamp(yaw_current, static_cast<std::int32_t>(-25000),
+                       static_cast<std::int32_t>(25000)));
+        // PnX M2006 feedback and the B2 target are both reducer-output rad/s.
+        trigger_pid_.ref = command.trigger_output_velocity;
+        trigger_pid_.fdb = trigger.velocity;
         trigger_pid_.update();
         out.trigger_current = static_cast<std::int16_t>(std::clamp(
             trigger_pid_.result, -10000.0f, 10000.0f));
     }
     out.yaw_ready = yaw_ready_;
 
-    robot_debug.aux.yaw_target_current = out.yaw_current;
-    robot_debug.aux.yaw_feedback_position = yaw.position;
-    robot_debug.aux.yaw_feedback_velocity = yaw.velocity;
-    robot_debug.aux.trigger_target_rotor_velocity = command.trigger_rotor_velocity;
-    robot_debug.aux.trigger_feedback_rotor_velocity = trigger.velocity * 36.0f;
+    robot_debug.aux.yaw_ref_current = out.yaw_current;
+    robot_debug.aux.yaw_fdb_pos = yaw.position;
+    robot_debug.aux.yaw_fdb_vel = yaw.velocity;
+    robot_debug.aux.trigger_ref_vel = command.trigger_output_velocity;
+    robot_debug.aux.trigger_fdb_vel = trigger.velocity;
     robot_debug.aux.trigger_current = out.trigger_current;
     robot_debug.aux.yaw_ready = yaw_ready_;
     return out;

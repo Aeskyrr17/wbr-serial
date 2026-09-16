@@ -1,5 +1,7 @@
 #pragma once
 
+#include "imu.hpp"
+
 #include <array>
 
 namespace robot::chassis
@@ -8,8 +10,7 @@ namespace robot::chassis
 class odometry
 {
 public:
-    void update(const float quaternion[4], const float accel[3],
-                float wheel_velocity, float yaw) noexcept;
+    void update(const ::imu::state& imu, float wheel_velocity) noexcept;
     void reset() noexcept;
     [[nodiscard]] float x() const noexcept { return state_[0]; }
     [[nodiscard]] float v() const noexcept { return state_[1]; }

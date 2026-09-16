@@ -22,9 +22,9 @@ void multiply3(const float a[9], const float b[9], float out[9]) noexcept
 }
 }
 
-void odometry::update(const float q[4], const float accel[3], float wheel_velocity,
-                      float yaw) noexcept
+void odometry::update(const ::imu::state& imu, float wheel_velocity) noexcept
 {
+    const auto& q = imu.quaternion;
     const float w = q[0], x = q[1], y = q[2], z = q[3];
     const float r00 = 1.0f - 2.0f * (y * y + z * z);
     const float r01 = 2.0f * (x * y - z * w);
@@ -35,10 +35,10 @@ void odometry::update(const float q[4], const float accel[3], float wheel_veloci
     const float r20 = 2.0f * (x * z - y * w);
     const float r21 = 2.0f * (y * z + x * w);
     const float r22 = 1.0f - 2.0f * (x * x + y * y);
-    const float awx = r00 * accel[0] + r01 * accel[1] + r02 * accel[2];
-    const float awy = r10 * accel[0] + r11 * accel[1] + r12 * accel[2];
-    az_ = r20 * accel[0] + r21 * accel[1] + r22 * accel[2];
-    const float ax = awx * std::cos(yaw) + awy * std::sin(yaw);
+    const float awx = r00 * imu.accel_x + r01 * imu.accel_y + r02 * imu.accel_z;
+    const float awy = r10 * imu.accel_x + r11 * imu.accel_y + r12 * imu.accel_z;
+    az_ = r20 * imu.accel_x + r21 * imu.accel_y + r22 * imu.accel_z;
+    const float ax = awx * std::cos(imu.total_yaw) + awy * std::sin(imu.total_yaw);
 
     float predicted[3] = {F[0] * state_[0] + F[1] * state_[1] + F[2] * state_[2],
                           state_[1] + dt * state_[2], state_[2]};

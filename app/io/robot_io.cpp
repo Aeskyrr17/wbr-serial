@@ -7,7 +7,6 @@
 #include "memory.h"
 
 #include <array>
-#include <atomic>
 #include <cstring>
 
 namespace robot::io
@@ -17,8 +16,8 @@ namespace
 template <typename T>
 struct mailbox
 {
-    std::atomic<std::uint32_t> guard{0};
     T value{};
+    bool valid = false;
 };
 
 mailbox<gimbal_command> command_box{};
@@ -31,23 +30,19 @@ std::uint8_t tof_parse_size = 0;
 template <typename T>
 void store(mailbox<T>& box, const T& value) noexcept
 {
-    box.guard.fetch_add(1U, std::memory_order_acq_rel);
     box.value = value;
-    box.guard.fetch_add(1U, std::memory_order_release);
+    box.valid = true;
 }
 
 template <typename T>
 bool load(const mailbox<T>& box, T& value) noexcept
 {
-    for (unsigned attempt = 0; attempt < 3; ++attempt)
-    {
-        const auto before = box.guard.load(std::memory_order_acquire);
-        if ((before & 1U) != 0U) continue;
+    const UINT previous = tx_interrupt_control(TX_INT_DISABLE);
+    const bool valid = box.valid;
+    if (valid)
         value = box.value;
-        const auto after = box.guard.load(std::memory_order_acquire);
-        if (before == after) return after != 0U;
-    }
-    return false;
+    tx_interrupt_control(previous);
+    return valid;
 }
 
 std::uint16_t read_u16(const std::uint8_t* data) noexcept
@@ -64,12 +59,13 @@ void can_rx(bsp::can::bus bus, const bsp::can::rx_frame& frame) noexcept
         gimbal_command value{};
         const std::uint8_t flags = frame.data[0];
         value.move = (flags & 0x01U) != 0U;
-        value.jump = (flags & 0x02U) != 0U;
         value.spin = (flags & 0x04U) != 0U;
-        value.turn = (flags & 0x08U) != 0U;
-        value.stair = (flags & 0x10U) != 0U;
-        value.fly = (flags & 0x20U) != 0U;
         value.gimbal_only = (flags & 0x40U) != 0U;
+        value.wants = command_box.value.wants;
+        if ((flags & 0x02U) != 0U) ++value.wants.jump;
+        if ((flags & 0x08U) != 0U) ++value.wants.turn;
+        if ((flags & 0x10U) != 0U) ++value.wants.stair;
+        if ((flags & 0x20U) != 0U) ++value.wants.fly;
         value.yaw_current = static_cast<std::int16_t>(read_u16(frame.data + 1));
         value.vx = static_cast<std::int8_t>(frame.data[3]);
         value.vy = static_cast<std::int8_t>(frame.data[4]);

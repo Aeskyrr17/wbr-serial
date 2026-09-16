@@ -14,14 +14,18 @@ float wrap(float value) noexcept
 }
 }
 
-bool pendulum::update(const leg_input& input, float pitch, float dpitch, float az) noexcept
+bool pendulum::update(const ::motors::feedback& joint1, const ::motors::feedback& joint4,
+                      const ::imu::state& imu, float az) noexcept
 {
-    const float phi1 = reverse_ ? model::pi - input.q1 : model::pi + input.q1;
-    const float phi4 = reverse_ ? -input.q4 : input.q4;
-    const float dphi1 = reverse_ ? -input.dq1 : input.dq1;
-    const float dphi4 = reverse_ ? -input.dq4 : input.dq4;
-    const float tq1 = reverse_ ? -input.tq1 : input.tq1;
-    const float tq4 = reverse_ ? -input.tq4 : input.tq4;
+    // Protocol -> joint velocity scale exactly once; position/torque are unchanged.
+    const float dq1 = joint1.velocity * model::joint_velocity_feedback_scale;
+    const float dq4 = joint4.velocity * model::joint_velocity_feedback_scale;
+    const float phi1 = reverse_ ? model::pi - joint1.position : model::pi + joint1.position;
+    const float phi4 = reverse_ ? -joint4.position : joint4.position;
+    const float dphi1 = reverse_ ? -dq1 : dq1;
+    const float dphi4 = reverse_ ? -dq4 : dq4;
+    const float tq1 = reverse_ ? -joint1.torque : joint1.torque;
+    const float tq4 = reverse_ ? -joint4.torque : joint4.torque;
     if (!vmc_.resolve(phi1, phi4))
         return false;
 
@@ -38,22 +42,22 @@ bool pendulum::update(const leg_input& input, float pitch, float dpitch, float a
 
     if (!phi_initialized_)
     {
-        total_phi_ = last_phi_ = state_.phi;
+        total_phi_ = prev_phi_ = state_.phi;
         phi_initialized_ = true;
     }
     else
     {
-        total_phi_ += wrap(state_.phi - last_phi_);
-        last_phi_ = state_.phi;
+        total_phi_ += wrap(state_.phi - prev_phi_);
+        prev_phi_ = state_.phi;
     }
 
-    state_.alpha = wrap(state_.phi - 0.5f * model::pi + pitch);
-    state_.dalpha = state_.dphi + dpitch;
+    state_.alpha = wrap(state_.phi - 0.5f * model::pi + imu.pitch);
+    state_.dalpha = state_.dphi + imu.gyro_p;
     state_.alpha_eq = model::alpha_eq[0] + model::alpha_eq[1] * state_.len +
                       model::alpha_eq[2] * state_.len * state_.len;
     const float ca = std::cos(state_.alpha), sa = std::sin(state_.alpha);
     const float vertical_force = (state_.force + state_.fs) * ca;
-    // Keep the legacy call-count differences: changing this requires retuning N thresholds.
+    //! TODO: 确定是否要除以dt
     const float ddlen = state_.dlen - prev_dlen_;
     const float ddalpha = state_.dalpha - prev_dalpha_;
     const float zw = (az - model::gravity) - ddlen * ca +
@@ -82,7 +86,6 @@ std::array<float, 2> pendulum::joint_torque(float force, float pitch_torque) con
 
 void pendulum::reset_tracking() noexcept
 {
-    prev_dlen_ = prev_dalpha_ = 0.0f;
     phi_initialized_ = false;
 }
 
