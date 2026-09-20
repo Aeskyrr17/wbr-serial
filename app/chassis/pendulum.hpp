@@ -14,7 +14,7 @@ public:
 
     bool update(const ::motors::feedback& joint1, const ::motors::feedback& joint4,
                 const ::imu::state& imu, float az) noexcept;
-    std::array<float, 2> joint_torque(float force, float pitch_torque) const noexcept;
+    std::array<float, 2> joint_torque(float leg_force, float hip_torque) const noexcept;
     void reset_tracking() noexcept;
 
     [[nodiscard]] const leg_state& state() const noexcept { return state_; }

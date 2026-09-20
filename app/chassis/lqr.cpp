@@ -1,7 +1,7 @@
 #include "lqr.hpp"
 
 #include "chassis_model.hpp"
-#include "wbr/lqr_coeffs.hpp"
+#include "model/lqr_coeffs.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -32,6 +32,7 @@ std::array<float, 4> lqr::update(lqr_mode mode, float llen, float rlen,
     for (std::size_t row = 0; row < output.size(); ++row)
         for (std::size_t column = 0; column < obs.size(); ++column)
             output[row] += gain_[row * obs.size() + column] * (obs[column] - ref[column]);
+    raw_output_ = output;
     output[0] = std::clamp(output[0], -model::max_wheel_torque, model::max_wheel_torque);
     output[1] = std::clamp(output[1], -model::max_wheel_torque, model::max_wheel_torque);
     output[2] = std::clamp(output[2], -model::max_joint_torque, model::max_joint_torque);

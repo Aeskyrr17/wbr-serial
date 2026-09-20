@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.22)
 
 set(PNX_BOARD "h723_mc02" CACHE STRING "Selected PNX board profile")
 set_property(CACHE PNX_BOARD PROPERTY STRINGS h723_mc02 f407_c_board)
-set(PNX_BOARD_DIR "${CMAKE_CURRENT_SOURCE_DIR}/boards/${PNX_BOARD}")
+get_filename_component(PNX_BOARD_DIR "${CMAKE_CURRENT_SOURCE_DIR}/boards/${PNX_BOARD}" ABSOLUTE)
 if(NOT EXISTS "${PNX_BOARD_DIR}/board.cmake" OR NOT EXISTS "${PNX_BOARD_DIR}/board.json")
     message(FATAL_ERROR "Unknown or incomplete PNX_BOARD='${PNX_BOARD}'")
 endif()
@@ -147,7 +147,7 @@ if(PNX_BOARD STREQUAL "h723_mc02")
     set(WBR_APPLICATION 1)
 else()
     set(WBR_APPLICATION 0)
-    list(FILTER PNX_EMBEDDED_SOURCES EXCLUDE REGEX "[/\\\\]app[/\\\\](chassis|command|io|auxiliary|ui)[/\\\\]")
+    list(FILTER PNX_EMBEDDED_SOURCES EXCLUDE REGEX "[/\\\\]app[/\\\\](chassis|command|io|ui)[/\\\\]")
     list(FILTER PNX_EMBEDDED_SOURCES EXCLUDE REGEX "[/\\\\]app[/\\\\]robot(_debug|_topics)?\\.cpp$")
 endif()
 
@@ -183,6 +183,9 @@ foreach(protocol IN ITEMS DR16 VT03 PS2 PS2_UART)
         list(FILTER PNX_EMBEDDED_SOURCES EXCLUDE REGEX "/pnx_modules/remoter/src/${filename}\\.cpp$")
     endif()
 endforeach()
+if(NOT PS2_GPIO_ASYNC)
+    list(FILTER PNX_EMBEDDED_SOURCES EXCLUDE REGEX "/pnx_modules/remoter/src/ps2_gpio_async\\.cpp$")
+endif()
 if(NOT ENABLE_PS2)
     list(FILTER PNX_EMBEDDED_SOURCES EXCLUDE REGEX "/diagnose/ps2/")
 endif()
@@ -283,26 +286,16 @@ set(CMSIS_DSP_SOURCES
 add_executable(${PROJECT_NAME})
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
-set(WBR_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated/wbr")
-set(WBR_GENERATED_LQR "${WBR_GENERATED_DIR}/lqr_coeffs.hpp")
-set(WBR_GENERATED_KINEMATICS "${WBR_GENERATED_DIR}/kinematics.hpp")
-set(WBR_MODEL_REPORT "${WBR_GENERATED_DIR}/model-report.json")
+# Model coefficients are reviewable source headers. Normal builds never rewrite them.
+# Run this target explicitly after editing tools/model/model_params.py.
 if(WBR_APPLICATION)
-add_custom_command(
-    OUTPUT "${WBR_GENERATED_LQR}" "${WBR_GENERATED_KINEMATICS}" "${WBR_MODEL_REPORT}"
+add_custom_target(wbr_model
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/model/generate.py"
-            --mode legacy --output-dir "${WBR_GENERATED_DIR}"
-    DEPENDS
-        "${CMAKE_CURRENT_SOURCE_DIR}/tools/model/generate.py"
-        "${CMAKE_CURRENT_SOURCE_DIR}/tools/model/model_params.py"
-        "${CMAKE_CURRENT_SOURCE_DIR}/tools/model/dynamics.py"
-        "${CMAKE_CURRENT_SOURCE_DIR}/tools/model/kinematics.py"
-        "${CMAKE_CURRENT_SOURCE_DIR}/app/chassis/legacy_lqr_coeffs.hpp"
+            --mode regenerate --output-dir "${CMAKE_CURRENT_SOURCE_DIR}/app/chassis/model"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    COMMENT "Regenerating source LQR and kinematics headers"
     VERBATIM
 )
-add_custom_target(wbr_model DEPENDS
-    "${WBR_GENERATED_LQR}" "${WBR_GENERATED_KINEMATICS}" "${WBR_MODEL_REPORT}")
-add_dependencies(${PROJECT_NAME} wbr_model)
 endif()
 
 add_subdirectory("${PNX_BOARD_CUBEMX_DIR}" "${CMAKE_BINARY_DIR}/stm32cubemx")

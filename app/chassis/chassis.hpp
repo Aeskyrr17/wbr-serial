@@ -64,14 +64,9 @@ private:
     void run_state(chassis_state executed, const state_context& in,
                    state_cycle& cycle) noexcept;
     void run_relax(const state_context& in, state_cycle& cycle) noexcept;
-    void run_recover(const state_context& in, state_cycle& cycle) noexcept;
     void run_flatten(const state_context& in, state_cycle& cycle) noexcept;
     void run_neutral(const state_context& in, state_cycle& cycle) noexcept;
     void run_normal(const state_context& in, state_cycle& cycle) noexcept;
-    void run_offground(const state_context& in, state_cycle& cycle) noexcept;
-    void run_spin(const state_context& in, state_cycle& cycle) noexcept;
-    void run_gostair(const state_context& in, state_cycle& cycle) noexcept;
-    void run_jump(const state_context& in, state_cycle& cycle) noexcept;
 
     pendulum left_{false};
     pendulum right_{true};
@@ -84,19 +79,10 @@ private:
     phi_control_state r_phi_{};
     control::slope len_ramp_{0.16f, 0.0002f};
     chassis_state state_ = chassis_state::relax;
-    jump_stage jump_ = jump_stage::dont;
-    action_events consumed_events_{};
     float target_len_ = 0.16f;
-    float maintain_yaw_ = 0.0f;
-    std::uint32_t airprotect_count_ = 0;
-    std::uint32_t landing_count_ = 0;
-    std::uint32_t jumpair_count_ = 0;
-    std::uint32_t flipover_count_ = 0;
+    std::uint32_t settle_count_ = 0;
     bool recovered_ = false;
     bool v_cmd_enabled_ = false;
-    bool flying_ = false;
-    bool stairing_ = false;
-    bool running_gains_ = false;
 };
 
 } // namespace robot::chassis

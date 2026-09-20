@@ -67,22 +67,6 @@
           "can_type": "classic",
           "can_id": "0x202",
           "control_mode": "relax"
-        },
-        {
-          "name": "trigger",
-          "model": "dji_m2006",
-          "can_bus": "fdcan2",
-          "can_type": "classic",
-          "can_id": "0x203",
-          "control_mode": "current"
-        },
-        {
-          "name": "yaw",
-          "model": "dji_gm6020",
-          "can_bus": "fdcan2",
-          "can_type": "classic",
-          "can_id": "0x205",
-          "control_mode": "current"
         }
       ]
     }

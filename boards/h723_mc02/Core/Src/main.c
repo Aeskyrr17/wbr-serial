@@ -31,6 +31,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "bsp_timer.h"
 
 /* USER CODE END Includes */
 
@@ -123,6 +124,7 @@ int main(void)
   MX_USB_OTG_HS_PCD_Init();
   MX_USART10_UART_Init();
   MX_TIM6_Init();
+  MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -266,6 +268,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
+  bsp_timer_dispatch(htim);
 
   /* USER CODE END Callback 1 */
 }

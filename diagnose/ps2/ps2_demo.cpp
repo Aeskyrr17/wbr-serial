@@ -81,7 +81,7 @@ bool run_protocol_test() noexcept
     if (remoter::ps2_protocol::poll(transport, state, &raw) != types::status::ok ||
         transport.query != poll_query || raw.bytes != transport.response.bytes || !state.start ||
         !state.cross || state.select || state.circle || state.rx != -1.0f || state.ry != 1.0f ||
-        state.lx != 1.0f || state.ly != -0.9921875f)
+        state.lx != 1.0f || state.ly != -1.0f)
     {
         return false;
     }
@@ -114,6 +114,9 @@ void record(const remoter::ps2_state& input) noexcept
     auto& state = debug::debug_instance.ps2_unit;
     state.last_status = input.frame_valid ? protocol::status_code(types::status::ok)
                                           : protocol::status_code(types::status::error);
+    state.transport_status = input.transport_status;
+    state.raw_decode_status = input.raw_decode_status;
+    state.poll_ticks = input.poll_ticks;
     state.controller_id = input.controller_id;
     for (std::size_t index = 0U; index < input.raw.bytes.size(); ++index)
     {

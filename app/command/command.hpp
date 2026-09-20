@@ -1,48 +1,43 @@
 #pragma once
 
 #include "robot_types.hpp"
-#include "slope.hpp"
 #include "robot_io.hpp"
+#include "remoter.hpp"
+#include "slope.hpp"
+#include "control_map.hpp"
 
 namespace robot::command
 {
-
-struct referee_summary
+// Source-independent operator intent, before ramps and reference generation.
+struct motion_request
 {
-    std::uint8_t robot_id = 0;
-    std::uint8_t robot_level = 0;
-    std::uint16_t heat_limit = 0;
-    std::uint16_t heat_now = 0;
-    float chassis_power_limit = 45.0f;
-    float power_buffer = 60.0f;
-    std::uint8_t remained_energy = 0;
-    std::uint8_t hurt_armor_id = 0;
-    std::uint8_t hurt_reason = 0;
-    bool chassis_power_enabled = false;
+    float v = 0.0f;
+    float dyaw = 0.0f;
+    float len_rate = 0.0f; // Requested leg length change, m/s.
+    bool move = false;
+    bool online = false;
+    input_source source = input_source::can;
+    std::uint32_t received_tick = 0;
 };
+
+motion_request map_can(const io::command& raw, std::uint32_t now) noexcept;
+
+motion_request map_ps2(const remoter::state& rc, std::uint32_t now) noexcept;
 
 class mapper
 {
 public:
-    command_frame step(const io::gimbal_command& raw, const io::tof_sample& tof,
-                       const referee_summary& referee, const robot_state& state,
+    command_frame step(const motion_request& request, const robot_state& state,
                        std::uint32_t now) noexcept;
-
 private:
-    control::slope yaw_ramp_{0.0f, 0.02f};
-    control::slope vx_ramp_{0.0f, 0.006f};
-    control::slope vy_ramp_{0.0f, 0.006f};
-    action_events events_{};
-    io::gimbal_wants handled_wants_{};
-    float held_x_ = 0.0f;
-    float held_yaw_ = 0.0f;
-    float spin_phase_ = 0.0f;
-    std::uint32_t jump_wait_count_ = 0;
-    std::uint32_t published_sequence_ = 0;
+    control::slope v_ramp_{0.0f, mapping::v_step};
+    control::slope yaw_ramp_{0.0f, mapping::dyaw_step};
+    input_source source_ = input_source::can;
+    std::uint32_t sequence_ = 0;
     bool hold_x_ = false;
     bool hold_yaw_ = false;
-    bool jump_armed_ = false;
-    bool prev_spin_ = false;
+    float len_ref_ = 0.0f; // Clamped to the model range on every step.
+    float held_x_ = 0.0f;
+    float held_yaw_ = 0.0f;
 };
-
-} // namespace robot::command
+}

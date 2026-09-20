@@ -81,12 +81,19 @@ def regenerate_coefficients() -> tuple[dict[str, np.ndarray], dict]:
     return result, checks
 
 
+def cpp_float(value: float) -> str:
+    text = f"{value:.9g}"
+    if "." not in text and "e" not in text.lower():
+        text += ".0"
+    return text + "f"
+
+
 def render_coefficients(coefficients: dict[str, np.ndarray]) -> str:
     lines = ["#pragma once", "", "namespace robot::chassis", "{"]
     for mode in ("low", "high", "spin"):
         lines.append(f"inline constexpr float {ARRAY_NAMES[mode]}[40][6] = {{")
         for row in coefficients[mode]:
-            lines.append("    {" + ", ".join(f"{value:.9g}f" for value in row) + "},")
+            lines.append("    {" + ", ".join(cpp_float(value) for value in row) + "},")
         lines += ["};", ""]
     lines += ["} // namespace robot::chassis", ""]
     return "\n".join(lines)
@@ -126,12 +133,12 @@ def generate(mode: str, output_dir: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=("legacy", "regenerate"), default="legacy")
+    parser.add_argument("--mode", choices=("legacy", "regenerate"), default="regenerate")
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--preset", default="h723-debug")
     parser.add_argument("--build", action="store_true")
     args = parser.parse_args()
-    output = args.output_dir or ROOT / "build" / args.preset / "generated" / "wbr"
+    output = args.output_dir or ROOT / "app" / "chassis" / "model"
     generate(args.mode, output)
     if args.build:
         subprocess.run(["cmake", "--preset", args.preset], cwd=ROOT, check=True)

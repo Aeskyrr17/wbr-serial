@@ -22,7 +22,7 @@ def main():
     sources = [
         'tests/host/control_semantics.cpp', 'app/chassis/chassis.cpp',
         'app/chassis/pendulum.cpp', 'app/chassis/vmc.cpp', 'app/chassis/odometry.cpp',
-        'app/chassis/lqr.cpp', 'app/command/command.cpp', 'app/robot_debug.cpp',
+        'app/chassis/lqr.cpp', 'app/command/command.cpp', 'app/command/control_map.cpp', 'app/robot_debug.cpp',
         'pnx_libs/control/src/pid.cpp', 'pnx_libs/math/src/constrain.cpp',
     ]
     compiler = [args.cxx, 'c++'] if args.zig else [args.cxx]

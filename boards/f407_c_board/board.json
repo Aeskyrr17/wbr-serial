@@ -55,6 +55,6 @@
       "gyro_cs": "bmi088_gyro_cs",
       "gyro_drdy": "bmi088_gyro_drdy",
       "heater_pwm": "bmi088_heater"
-    },
+    }
   }
 }

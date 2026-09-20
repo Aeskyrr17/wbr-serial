@@ -1,3 +1,8 @@
+> 当前实现以 `minimal-motion.md` 为准；此前追加的独立 chassis test 模式及组合键已删除，下文保留历史方案/基线说明。
+
+> 当前 `chassis/minimal-motion` 分支的运行与按键说明见 [minimal-motion.md](minimal-motion.md)。
+> 本文以下保留完整迁移基线（143e14c）的审阅记录，不能作为本分支当前控制行为。
+
 # WBR H723 业务迁移
 
 本页说明 `wbr_2026` 的轮腿业务在 PnX 中的实际落点。固件未包含 MPC、LESO、调参通信或 Flash 参数保存。当前迁移构建默认 `robot_tuning.motor_output_enabled=false`，因此即使启动业务线程也不会发送电机 enable/current/MIT 帧；分步硬件验收时才可通过探针显式打开。
@@ -91,25 +96,15 @@ ELF 中保留两个自然对齐的具名全局符号：`robot_debug` 和 `robot_
 
 ## 模型和构建
 
-默认生成兼容快照并编译：
+固件系数位于 `app/chassis/model/lqr_coeffs.hpp`，普通构建不再生成或覆盖它。当前值保留旧工程快照。
+
+调整 Q/R 或物理建模参数请编辑 `tools/model/model_params.py`，再显式生成并编译：
 
 ```powershell
-python tools/model/generate.py --preset h723-debug --build
+python tools/model/generate.py --mode regenerate --build
 ```
 
-只生成兼容快照：
-
-```powershell
-python tools/model/generate.py --mode legacy --output-dir build/h723-debug/generated/wbr
-```
-
-重新拟合到独立目录（不会切换固件默认系数）：
-
-```powershell
-python tools/model/generate.py --mode regenerate --output-dir build/model-regenerate
-```
-
-依赖以实际验证环境固定为 Python 3.13.13、NumPy 2.5.1、SciPy 1.18.0。重新拟合使用旧 model.m 的五方程数值质量矩阵、连续 CARE、外 L 内 R 采样以及 `[1,L,R,L²,LR,R²]` 拟合；报告包含 CARE 残差、拟合误差、连续闭环与 1 ms 采样检查。当前重新拟合与旧快照最大系数差约 LOW 18.91、HIGH 18.20、SPIN 20.32，因此未替换默认值。
+生成结果写入源码目录 `app/chassis/model/`。重新拟合会替换当前系数；它与旧快照存在差异。参数顺序、直接修改系数及恢复旧快照的方法见 [LQR 调参说明](../tools/model/README.md)。
 
 主机检查：
 
@@ -157,9 +152,9 @@ UI 不在本次产品运动链，AHRS/Referee 继续由框架服务提供。
 | `phi` / `total_phi` | 机体坐标内虚拟腿角 / 展开的连续虚拟腿角；不是 body pitch。 |
 | `alpha` / `dalpha` | 世界系腿倾角及角速度：`wrap(phi-pi/2+pitch)`、`dphi+gyro_p`。 |
 | `alpha_eq` | 随腿长变化的平衡倾角，沿用 config 多项式；不声称已经找到 Matlab 拟合源。 |
-| `force` / `pitch_torque` | 由两关节反馈反解的虚拟腿轴向力与平面力矩。 |
+| `leg_force` / `hip_torque` | 由两关节反馈反解的虚拟腿轴向力 F_L（N）与等效髋主动力矩 τ_l（N·m）。 |
 | `fs` / `normal_force` | 弹簧等效轴向支撑 / 旧公式估计的轮地支撑力；后者不是直接测量值。 |
-| `Fl/Fr`、`Tpl/Tpr`、`Twl/Twr` | 左右虚拟腿轴向力、虚拟腿平面力矩、轮力矩；不能混成同单位向量后随意重命名。 |
+| `Fl/Fr`、`Tpl/Tpr`、`Twl/Twr` | 左右虚拟腿轴向力、等效髋主动力矩、轮力矩；不能混成同单位向量后随意重命名。 |
 | `yaw_fdb` / `yaw_ref` | 前者是 yaw 电机反馈角，后者是底盘 yaw 参考；`robot_state.yaw` 是 AHRS 连续 yaw。 |
 | `prev_phi_` / `prev_spin_` | 确实保存上次采样/电平，才使用 prev。ref/fdb 沿用控制领域缩写。 |
 | `wheel_current_scale` | 旧 `1400` 为 Tw 到 DJI 指令计数的换算尺度，不把指令计数称为安培。 |

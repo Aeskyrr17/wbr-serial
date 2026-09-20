@@ -16,6 +16,9 @@
     ]
   },
   "bindings": {
+    "timers": {
+      "ps2_clock": { "timer": "tim7" }
+    },
     "gpio_inputs": {
       "bmi088_gyro_drdy": {
         "pin": "pe12",

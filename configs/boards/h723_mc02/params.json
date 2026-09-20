@@ -6,16 +6,12 @@
     "remoter_uart": "uart5",
     "vt03_uart": "usart1",
     "referee_uart": "usart1",
-    "uart_ports": {
-      "tof": "uart7"
-    },
     "can_buses": {
       "gimbal_link": {
         "bus": "fdcan3",
         "rx_header": "0xB2",
         "tx_header": "0xC1"
-      },
-      "supercap": "fdcan3"
+      }
     }
   },
   "can": {
@@ -37,8 +33,8 @@
     "target_temp": 45
   },
   "remoter": {
-    "source": "none",
-    "thread_priority": 2,
+    "source": "ps2",
+    "thread_priority": 9,
     "rx_timeout_ticks": 100,
     "offline_timeout_ticks": 120
   },
@@ -69,5 +65,13 @@
     "pid_max_iout": 200,
     "pid_scalar_a": 3.5,
     "pid_scalar_b": 0.2
+  },
+  "ps2": {
+    "backend": "gpio",
+    "timer": "ps2_clock",
+    "cmd": "pe13",
+    "data": "pe9",
+    "clk": "pa2",
+    "cs": "pa0"
   }
 }

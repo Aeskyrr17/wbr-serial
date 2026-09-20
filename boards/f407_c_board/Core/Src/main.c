@@ -31,6 +31,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "bsp_timer.h"
 #include "bsp_diagnostics.h"
 /* USER CODE END Includes */
 
@@ -200,6 +201,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
+  bsp_timer_dispatch(htim);
 
   /* USER CODE END Callback 1 */
 }

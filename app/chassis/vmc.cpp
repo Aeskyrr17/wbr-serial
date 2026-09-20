@@ -1,7 +1,7 @@
 #include "vmc.hpp"
 
 #include "chassis_model.hpp"
-#include "wbr/kinematics.hpp"
+#include "model/kinematics.hpp"
 
 #include <cmath>
 
@@ -50,6 +50,7 @@ bool vmc::resolve(float phi1, float phi4) noexcept
     const float qy = L1 * s1 + spring_d2 * std::sin(u2);
     const float sx = qx - px, sy = qy - py;
     const float spring_len = std::sqrt(sx * sx + sy * sy);
+    state_.spring_len = spring_len;
     if (spring_len < 1.0e-5f || std::fabs(std::sin(u2 - u3)) < 0.05f)
     {
         state_.fs = 0.0f;
@@ -77,10 +78,10 @@ std::array<float, 2> vmc::velocity(float dphi1, float dphi4) const noexcept
             state_.J[2] * dphi1 + state_.J[3] * dphi4};
 }
 
-std::array<float, 2> vmc::joint_torque(float force, float torque) const noexcept
+std::array<float, 2> vmc::joint_torque(float leg_force, float hip_torque) const noexcept
 {
-    return {state_.JT[0] * force + state_.JT[1] * torque,
-            state_.JT[2] * force + state_.JT[3] * torque};
+    return {state_.JT[0] * leg_force + state_.JT[1] * hip_torque,
+            state_.JT[2] * leg_force + state_.JT[3] * hip_torque};
 }
 
 std::array<float, 2> vmc::generalized_force(float tq1, float tq4) const noexcept

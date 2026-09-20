@@ -22,6 +22,9 @@ TRAIN_LENGTHS = tuple(round(0.10 + 0.01 * i, 2) for i in range(28))
 RUNTIME_LENGTHS = (0.16, 0.35)
 ALPHA_EQ_LEGACY = (0.280918, -1.101757, 1.232768)
 
+# x, v, yaw, dyaw, alpha_l, dalpha_l, alpha_r, dalpha_r, pitch, dpitch
+# Twl, Twr, Tpl, Tpr
+
 QR = {
     "low": (
         (300, 20, 300, 100, 20000, 600, 20000, 600, 150000, 1500),

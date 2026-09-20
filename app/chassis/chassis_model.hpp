@@ -31,6 +31,8 @@ inline constexpr float spin_len_amp = 0.08f;
 // Legacy value: 2.94395 rad/s, about 2.134 s per period.
 inline constexpr float spin_len_omega = 2.94395f;
 inline constexpr float gravity_feedforward = 67.865f;
+// inline constexpr float gravity_feedforward = 0.0f;
+//! TODO: 腿的重力补偿
 inline constexpr float alpha_eq[3] = {0.280918f, -1.101757f, 1.232768f};
 inline constexpr float yaw_offset_front = -2.54257321f;
 inline constexpr float yaw_offset_rear = 0.599019443f;

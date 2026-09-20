@@ -120,6 +120,9 @@ struct imu_unit_state : unit_test_state
 
 struct ps2_unit_state : unit_test_state
 {
+    std::uint8_t transport_status = 0;
+    std::uint8_t raw_decode_status = 0;
+    std::uint32_t poll_ticks = 0;
     bool compiled_enabled = false;
     bool initialized = false;
     bool frame_valid = false;

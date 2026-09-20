@@ -2,14 +2,14 @@
 
 namespace robot::topics
 {
+msg::channel<command::motion_request> ps2_request{};
 msg::channel<command_frame> command{};
 msg::channel<robot_state> state{};
-msg::channel<command::referee_summary> referee{};
 
 bool init() noexcept
 {
-    return msg::init(command) == types::status::ok &&
-           msg::init(state) == types::status::ok &&
-           msg::init(referee) == types::status::ok;
+    return msg::init(ps2_request) == types::status::ok &&
+           msg::init(command) == types::status::ok &&
+           msg::init(state) == types::status::ok;
 }
 } // namespace robot::topics

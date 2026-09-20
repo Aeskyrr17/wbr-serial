@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 
 # Inputs: IOC, BOARD_CONFIG, PARAMS, ROBOT_CONFIG, OUT_DIR, PNX_BOARD_FAMILY.
-# Outputs: four build-local C++ files; feature flags and resource counts used
+# Outputs: build-local C++ configuration files; feature flags and resource counts used
 # by the parent CMake source selection. Also callable directly with cmake -P.
 # Keep helpers here: the parser is hardware-only, this file owns JSON semantics.
 include("${CMAKE_CURRENT_LIST_DIR}/import_ioc.cmake")
@@ -1748,6 +1748,8 @@ _pnx_write_generated("${CONFIG_HPP}"
 
 message(STATUS "Generated ${CONFIG_HPP}")
 
+include("${CMAKE_CURRENT_LIST_DIR}/generate_timer.cmake")
+
 set(ps2_device_binding_body "")
 if(HAS_PS2_DEVICE)
     if(PS2_BACKEND_SPI)
@@ -1761,11 +1763,11 @@ if(HAS_PS2_DEVICE)
             "}\n")
     else()
         string(APPEND ps2_device_binding_body
-            "using ps2_transport = ps2_gpio${generated_semicolon_token}\n\n"
+            "using ps2_transport = ${ps2_gpio_transport}${generated_semicolon_token}\n\n"
             "inline ps2& ps2_instance()\n"
             "{\n"
             "    static ps2_transport transport{board::device::ps2::cmd, board::device::ps2::data,\n"
-            "                                   board::device::ps2::clk, board::device::ps2::cs}${generated_semicolon_token}\n"
+            "                                   board::device::ps2::clk, board::device::ps2::cs${ps2_timer_argument}}${generated_semicolon_token}\n"
             "    static ps2 controller{transport}${generated_semicolon_token}\n"
             "    return controller${generated_semicolon_token}\n"
             "}\n")
@@ -1778,6 +1780,7 @@ _pnx_write_generated("${BSP_BINDINGS_HPP}"
 "#include \"config.hpp\"\n\n"
 "#if HAS_PS2_DEVICE\n"
 "#include \"ps2.hpp\"\n\n"
+"${ps2_async_include}"
 "namespace remoter::binding {\n\n"
 "${ps2_device_binding_body}"
 "} // namespace remoter::binding\n"
@@ -1786,6 +1789,16 @@ message(STATUS "Generated ${BSP_BINDINGS_HPP}")
 
 set(bsp_bindings_cpp_includes "")
 set(bsp_bindings_cpp_body "")
+
+if(timer_channel_count GREATER 0)
+    string(APPEND bsp_bindings_cpp_includes "#include \"bsp_timer_binding.hpp\"\n")
+    string(APPEND bsp_bindings_cpp_body
+        "namespace bsp::timer::detail {\n"
+        "bool binding_for(channel id, binding& out) noexcept\n{\n"
+        "    switch (id) {\n${timer_binding_cases}"
+        "    default: return false${generated_semicolon_token}\n    }\n}\n}\n\n")
+endif()
+
 if(ENABLE_USBX)
     list(LENGTH PNX_IOC_USB_HW usb_controller_count)
     if(NOT usb_controller_count EQUAL 1)
