@@ -29,12 +29,16 @@ bool pendulum::update(const ::motors::feedback& joint1, const ::motors::feedback
     state_.phi1 = phi1;
     state_.phi4 = phi4;
     state_.valid = vmc_.resolve(phi1, phi4);
+    const auto& solved = vmc_.state();
+    state_.geometry_error = solved.geometry_error;
+    static_cast<spring_result&>(state_) = static_cast<const spring_result&>(solved);
+    state_.len = solved.len;
+    state_.phi = solved.phi;
     if (!state_.valid)
         return false;
 
     const auto velocity = vmc_.velocity(dphi1, dphi4);
     const auto load = vmc_.generalized_force(tq1, tq4); // [F_L, tau_l]
-    const auto& solved = vmc_.state();
     state_.len = solved.len;
     state_.dlen = velocity[0];
     state_.phi = solved.phi;

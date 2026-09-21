@@ -313,8 +313,11 @@ chassis_output controller::step(const ::imu::state& imu, const motor_feedback_sn
     published.next_state = cycle.next;
 
     robot_debug.chassis.state = published;
+    ++robot_debug.chassis.sample_seq;
+    robot_debug.chassis.sample_tick = now;
     robot_debug.chassis.left = left;
     robot_debug.chassis.right = right;
+    ++robot_debug.chassis.sample_seq;
     robot_debug.chassis.output = out;
     std::copy(obs.begin(), obs.end(), robot_debug.chassis.obs);
     std::copy(cycle.ref.begin(), cycle.ref.end(), robot_debug.chassis.ref);

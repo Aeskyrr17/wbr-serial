@@ -6,7 +6,6 @@
 #include "chassis_model.hpp"
 #include "command.hpp"
 #include "motorservice.hpp"
-#include "dmmotorhandler.hpp"
 #include "motortraits.hpp"
 #include "remoter.hpp"
 #include "robot_config.hpp"
@@ -94,12 +93,12 @@ void control_entry(ULONG) noexcept
     std::uint64_t last_start = bsp::dwt::timeline_us();
     bool motors_started = false;
     auto& motor_debug = robot_debug.motors;
-    motor_debug.joint_bus = &::motors::dmmotorhandler::instance().debug[
-        static_cast<std::size_t>(l_joint1.can_bus())];
-    motor_debug.l_joint1 = &l_joint1.debug;
-    motor_debug.l_joint4 = &l_joint4.debug;
-    motor_debug.r_joint1 = &r_joint1.debug;
-    motor_debug.r_joint4 = &r_joint4.debug;
+    motor_debug.l_joint1 = &l_joint1;
+    motor_debug.l_joint4 = &l_joint4;
+    motor_debug.r_joint1 = &r_joint1;
+    motor_debug.r_joint4 = &r_joint4;
+    motor_debug.l_wheel = &l_wheel;
+    motor_debug.r_wheel = &r_wheel;
     motor_debug.registered = register_motors();
     if (!motor_debug.registered) for (;;) tx_thread_sleep(100U);
 

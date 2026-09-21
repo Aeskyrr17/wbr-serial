@@ -5,7 +5,7 @@
 
 #include <cstdint>
 
-namespace motors { struct dm_motor_debug; struct dm_bus_debug; }
+namespace motors { class dmmotor; class motor; }
 
 namespace robot
 {
@@ -14,7 +14,7 @@ struct robot_tuning_t
 {
     // Deliberately false in this migration build. Hardware validation must opt in.
     volatile bool motor_output_enabled = true;
-    volatile float alpha_trim = 0.02f;
+    volatile float alpha_trim = 0.03f;
     control::pid_params len_startup{5000.0f, 0.0f, -1500.0f, 125.0f, 0.0f};
     control::pid_params len_run{2000.0f, 0.0f, -400.0f, 125.0f, 0.0f};
     control::pid_params roll{0.5f, 0.0f, 0.0f, 0.05f, 0.005f};
@@ -55,6 +55,9 @@ struct joint_torque_debug
 
 struct chassis_debug
 {
+    volatile std::uint32_t sample_seq = 0; // Probe: accept equal even sequence before/after reading.
+    std::uint32_t sample_tick = 0; // Both leg snapshots belong to this solve cycle.
+    float spring_force = chassis::model::spring_force;
     robot_state state{};
     leg_state left{};
     leg_state right{};
@@ -93,11 +96,12 @@ struct runtime_debug
 // Live read-only views: continue updating while control waits for motor enable.
 struct motor_link_debug
 {
-    const ::motors::dm_bus_debug* joint_bus = nullptr;
-    const ::motors::dm_motor_debug* l_joint1 = nullptr;
-    const ::motors::dm_motor_debug* l_joint4 = nullptr;
-    const ::motors::dm_motor_debug* r_joint1 = nullptr;
-    const ::motors::dm_motor_debug* r_joint4 = nullptr;
+    const ::motors::dmmotor* l_joint1 = nullptr;
+    const ::motors::dmmotor* l_joint4 = nullptr;
+    const ::motors::dmmotor* r_joint1 = nullptr;
+    const ::motors::dmmotor* r_joint4 = nullptr;
+    const ::motors::motor* l_wheel = nullptr;
+    const ::motors::motor* r_wheel = nullptr;
     bool registered = false;
     bool starting = false;
     types::status start_status = types::status::not_initialized;

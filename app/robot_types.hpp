@@ -1,5 +1,7 @@
 #pragma once
 
+#include "chassis/vmc.hpp"
+
 #include "motor.hpp"
 
 #include <cstdint>
@@ -51,13 +53,13 @@ struct motor_feedback_snapshot
 // alpha = phi - pi/2 + body pitch; d* are rates in SI units.
 // fs is passive spring support; leg_force/hip_torque come from joint feedback.
 // normal_force is the legacy estimated wheel-ground support, not a force sensor.
-struct leg_state
+struct leg_state : chassis::spring_result
 {
+    chassis::vmc_error geometry_error = chassis::vmc_error::none;
     float phi1 = 0.0f; // VMC input after motor-coordinate conversion (rad).
     float phi4 = 0.0f;
     float total_phi = 0.0f;
-    float spring_len = 0.0f; // Spring attachment-point distance (m).
-    bool valid = false; // Current geometry solve; other solved fields retain last valid sample on failure.
+    bool valid = false; // Geometry AND spring valid; spring fields/len/phi are current-cycle values.
     float phi = 0.0f;
     float dphi = 0.0f;
     float alpha = 0.0f;
@@ -65,7 +67,6 @@ struct leg_state
     float alpha_eq = 0.0f;
     float len = 0.0f;
     float dlen = 0.0f;
-    float fs = 0.0f;
     float leg_force = 0.0f;
     float hip_torque = 0.0f;
     float normal_force = 0.0f;

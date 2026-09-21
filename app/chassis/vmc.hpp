@@ -1,16 +1,19 @@
 #pragma once
 
 #include <array>
+#include "spring.hpp"
 
 namespace robot::chassis
 {
 
-struct vmc_state
+enum class vmc_error { none, nonfinite, dimensions, legacy_domain, singular, spring };
+
+struct vmc_state : spring_result
 {
+    bool valid = false;
+    vmc_error geometry_error = vmc_error::nonfinite;
     float len = 0.0f;
     float phi = 0.0f;
-    float fs = 0.0f;
-    float spring_len = 0.0f;
     std::array<float, 4> J{};
     std::array<float, 4> JT{};
     std::array<float, 4> JT_inv{};

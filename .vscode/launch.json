@@ -40,42 +40,14 @@
       }
     },
     {
-      "name": "Cortex Kit: H723 Flash & Debug",
-      "type": "cortex-kit",
-      "request": "launch",
-      "cwd": "${workspaceFolder}",
-      "chip": "STM32H723VG",
-      "programBinary": "${workspaceFolder}/build/h723-debug/pnx_embedded.elf",
-      "preLaunchTask": "cmake-build-debug",
-      "stopOnEntry": false,
-      "probe": {
-        "selector": "auto",
-        "protocol": "swd",
-        "speedKHz": 10000,
-        "connectUnderReset": false
-      },
-      "flashing": {
-        "enabled": true,
-        "verify": true,
-        "resetAfter": true
-      },
-      "acquisition": {
-        "requestedSamplesPerSecond": 5000,
-        "maxBurstMs": 2,
-        "historySeconds": 30
-      }
-    },
-    {
-      "name": "Cortex Kit: H723 Live Plot (Attach)",
       "type": "cortex-kit",
       "request": "attach",
+      "name": "Cortex Kit: Live Plot (Attach)",
       "cwd": "${workspaceFolder}",
       "chip": "STM32H723VG",
       "programBinary": "${workspaceFolder}/build/h723-debug/pnx_embedded.elf",
-      "plotOnly": true,
-      "stopOnEntry": false,
       "probe": {
-        "selector": "auto",
+        "selector": "Horco CMSIS-DAP,SN:682623202833",
         "protocol": "swd",
         "speedKHz": 10000,
         "connectUnderReset": false
@@ -86,22 +58,23 @@
         "resetAfter": false
       },
       "acquisition": {
-        "requestedSamplesPerSecond": 10000,
+        "requestedSamplesPerSecond": 100000,
         "maxBurstMs": 2,
         "historySeconds": 30
-      }
+      },
+      "svdFile": null,
+      "plotOnly": true,
+      "stopOnEntry": false
     },
     {
-      "name": "Cortex Kit: F407 Flash & Debug",
       "type": "cortex-kit",
       "request": "launch",
+      "name": "Cortex Kit: Flash & Debug",
       "cwd": "${workspaceFolder}",
-      "chip": "STM32F407IGHx",
-      "programBinary": "${workspaceFolder}/build/f407-debug/pnx_embedded.elf",
-      "preLaunchTask": "cmake-build-debug",
-      "stopOnEntry": false,
+      "chip": "STM32H723VG",
+      "programBinary": "${workspaceFolder}/build/h723-debug/pnx_embedded.elf",
       "probe": {
-        "selector": "auto",
+        "selector": "Horco CMSIS-DAP,SN:682623202833",
         "protocol": "swd",
         "speedKHz": 10000,
         "connectUnderReset": false
@@ -112,36 +85,11 @@
         "resetAfter": true
       },
       "acquisition": {
-        "requestedSamplesPerSecond": 5000,
+        "requestedSamplesPerSecond": 100000,
         "maxBurstMs": 2,
         "historySeconds": 30
-      }
-    },
-    {
-      "name": "Cortex Kit: F407 Live Plot (Attach)",
-      "type": "cortex-kit",
-      "request": "attach",
-      "cwd": "${workspaceFolder}",
-      "chip": "STM32F407IGHx",
-      "programBinary": "${workspaceFolder}/build/f407-debug/pnx_embedded.elf",
-      "plotOnly": true,
-      "stopOnEntry": false,
-      "probe": {
-        "selector": "auto",
-        "protocol": "swd",
-        "speedKHz": 10000,
-        "connectUnderReset": false
       },
-      "flashing": {
-        "enabled": false,
-        "verify": false,
-        "resetAfter": false
-      },
-      "acquisition": {
-        "requestedSamplesPerSecond": 10000,
-        "maxBurstMs": 2,
-        "historySeconds": 30
-      }
+      "svdFile": null
     }
   ]
 }

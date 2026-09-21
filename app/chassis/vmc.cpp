@@ -1,7 +1,6 @@
 #include "vmc.hpp"
 
 #include "chassis_model.hpp"
-#include "model/kinematics.hpp"
 
 #include <cmath>
 
@@ -11,65 +10,77 @@ namespace robot::chassis
 bool vmc::resolve(float phi1, float phi4) noexcept
 {
     using namespace model;
-    const float s1 = std::sin(phi1), c1 = std::cos(phi1);
-    const float s4 = std::sin(phi4), c4 = std::cos(phi4);
-    const auto geometry = wbr_generated::solve_geometry(phi1, phi4, L1, L2);
-    if (!geometry.valid)
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    state_ = {};
+    state_.len = state_.phi = nan;
+    state_.J.fill(nan);
+    state_.JT.fill(nan);
+    state_.JT_inv.fill(nan);
+    if (!std::isfinite(phi1) || !std::isfinite(phi4))
         return false;
-    const float u2 = geometry.u2;
-    const float bx = L1 * c1, by = L1 * s1;
-    const float cx = bx + L2 * std::cos(u2);
-    const float cy = by + L2 * std::sin(u2);
-    const float dx = L1 * c4, dy = L1 * s4;
-    const float u3 = pi + std::atan2(dy - cy, dx - cx);
-    const float len = std::sqrt(cx * cx + cy * cy);
-    if (len < 1.0e-6f)
+    if (!std::isfinite(L1) || !std::isfinite(L2) || L1 <= 0.0f || L2 <= 0.0f)
+    {
+        state_.geometry_error = vmc_error::dimensions;
         return false;
-    const float phi = std::atan2(cy, cx);
-    const float s32 = std::sin(u3 - u2);
-    const float s12 = std::sin(phi1 - u2);
-    const float s34 = std::sin(u3 - phi4);
-    if (std::fabs(s32) < 1.0e-5f || std::fabs(s12) < 1.0e-5f ||
-        std::fabs(s34) < 1.0e-5f)
-        return false;
+    }
 
-    const float c03 = std::cos(phi - u3), c02 = std::cos(phi - u2);
-    const float s03 = std::sin(phi - u3), s02 = std::sin(phi - u2);
+    // Choose the same oriented closure as the old +sqrt coordinate solution.
+    // Adjust the relative angle BEFORE averaging: independent 2*pi turns must
+    // not flip the assembly. Coincident active links are rejected below.
+    const float q1 = std::remainder(phi1, 2.0f * pi);
+    const float q4 = std::remainder(phi4, 2.0f * pi);
+    float delta = std::fmod(q1 - q4, 2.0f * pi);
+    if (delta < 0.0f)
+        delta += 2.0f * pi;
+    const float half_delta = 0.5f * delta;
+    const float phi = std::remainder(q4 + half_delta, 2.0f * pi);
+    const float sn = std::sin(half_delta);
+    const float cs = std::cos(half_delta);
+    const float h_sq = L2 * L2 - L1 * L1 * sn * sn;
+
+    // Length thresholds are metres; k is metres per radian.
+    constexpr float min_h = 1.0e-6f;
+    constexpr float min_len = 1.0e-6f;
+    constexpr float min_k = 1.0e-6f;
+    if (!std::isfinite(h_sq) || h_sq <= min_h * min_h)
+    {
+        state_.geometry_error = vmc_error::singular;
+        return false;
+    }
+    const float h = std::sqrt(h_sq);
+    const float len = L1 * cs + h;
+    const float k = -len * L1 * sn / (2.0f * h);
+    if (len <= min_len || std::fabs(k) <= min_k)
+    {
+        state_.geometry_error = vmc_error::singular;
+        return false;
+    }
+
+    // Preserve the old solver's domain, including its atan2 half-angle chart
+    // exclusion |A+C|<1e-6 m^2; no u2/u3 or wheel coordinates are needed.
+    const float db = 2.0f * L1 * sn;
+    const float a_plus_c = 2.0f * L2 * db * std::sin(phi) + db * db;
+    const float sin32 = db * h / (L2 * L2);
+    const float sin12_abs = len * sn / L2;
+    if (std::fabs(a_plus_c) < 1.0e-6f || sin32 < 1.0e-5f || sin12_abs < 1.0e-5f)
+    {
+        state_.geometry_error = vmc_error::legacy_domain;
+        return false;
+    }
+
     state_.len = len;
     state_.phi = phi;
-    state_.J = {L1 * s03 * s12 / s32, L1 * s02 * s34 / s32,
-                L1 * c03 * s12 / (s32 * len), L1 * c02 * s34 / (s32 * len)};
-    state_.JT = {state_.J[0], state_.J[2], state_.J[1], state_.J[3]};
-    state_.JT_inv = {-c02 / (s12 * L1), c03 / (s34 * L1),
-                     s02 * len / (s12 * L1), -s03 * len / (s34 * L1)};
+    state_.J = {k, -k, 0.5f, 0.5f};
+    state_.JT = {k, 0.5f, -k, 0.5f};
+    state_.JT_inv = {0.5f / k, -0.5f / k, 1.0f, 1.0f};
+    if (!std::isfinite(len) || !std::isfinite(phi) || !std::isfinite(k) ||
+        !std::isfinite(state_.JT_inv[0]))
+        return false;
 
-    const float p_angle = phi1 + spring_angle - 0.5f * pi;
-    const float px = spring_d1 * std::cos(p_angle);
-    const float py = spring_d1 * std::sin(p_angle);
-    const float qx = L1 * c1 + spring_d2 * std::cos(u2);
-    const float qy = L1 * s1 + spring_d2 * std::sin(u2);
-    const float sx = qx - px, sy = qy - py;
-    const float spring_len = std::sqrt(sx * sx + sy * sy);
-    state_.spring_len = spring_len;
-    if (spring_len < 1.0e-5f || std::fabs(std::sin(u2 - u3)) < 0.05f)
-    {
-        state_.fs = 0.0f;
-        return true;
-    }
-    const float fsx = spring_force * sx / spring_len;
-    const float fsy = spring_force * sy / spring_len;
-    const float inv = 1.0f / (L2 * std::sin(u2 - u3));
-    const float du2_d1 = L1 * std::sin(u3 - phi1) * inv;
-    const float du2_d4 = L1 * std::sin(phi4 - u3) * inv;
-    const float dqx1 = -L1 * s1 - spring_d2 * std::sin(u2) * du2_d1;
-    const float dqy1 = L1 * c1 + spring_d2 * std::cos(u2) * du2_d1;
-    const float dqx4 = -spring_d2 * std::sin(u2) * du2_d4;
-    const float dqy4 = spring_d2 * std::cos(u2) * du2_d4;
-    const float tq1 = fsx * (dqx1 + spring_d1 * std::sin(p_angle)) +
-                      fsy * (dqy1 - spring_d1 * std::cos(p_angle));
-    const float tq4 = fsx * dqx4 + fsy * dqy4;
-    state_.fs = state_.JT_inv[0] * tq1 + state_.JT_inv[1] * tq4;
-    return true;
+    static_cast<spring_result&>(state_) = solve_spring(len);
+    state_.valid = state_.spring_valid;
+    state_.geometry_error = state_.valid ? vmc_error::none : vmc_error::spring;
+    return state_.valid;
 }
 
 std::array<float, 2> vmc::velocity(float dphi1, float dphi4) const noexcept

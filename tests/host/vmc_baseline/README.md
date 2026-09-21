@@ -1,0 +1,6 @@
+Snapshot of production working tree immediately before direct VMC replacement; includes validated analytic spring solve. No hand-written old equations. Test build renames its namespace only.
+vmc.cpp: 0dea4f8ea1e9dc0e6356605c8026e25bbe9e1dcfa1e98cf62ae6807dc7f2f878
+vmc.hpp: a28bb54e0a4108e7d85ed6c63b7deb9b43252ae1a71762d1395fc98e0fb61b4c
+spring.hpp: 6db8ca10e89a1a8cd65864631374e2f91693b3640ae3691cbc8c8231a7d54782
+chassis_model.hpp: b40dca54e0c199c10ac4ca92c19a69e0bfcd457b0f1070f90c0f344a4fb4eafa
+model/kinematics.hpp: d8e70d10f004c771baef786b6f210cbd82cadf2bcbb37a8e8c4d489ebe23e9a8
