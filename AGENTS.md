@@ -515,3 +515,16 @@ Fs-vali analytic spring calculation and validation: see docs/spring-validation.m
 Direct VMC replacement on Fs-vali: relative angle in [0,2pi) selects legacy oriented closure before averaging. Analytic k generates J/JT/JT_inv; spring.hpp unchanged. Baseline snapshot and actual test details/maxima are in docs/vmc-direct-validation.md. Do not claim near-singular outputs equivalent at ordinary-pose tolerances. Default output remains disabled; missing Device debug API still blocks full image.
 
 Current build status: H723 Debug now compiles and links after removing application references to the uncommitted Device debug API. robot_debug.motors exposes const pointers to the existing four dmmotor objects and two wheel motor base objects. Watch ->fdb, ->alive, ->motor_state and ->cmd; DM also exposes ->raw, ->enablefailed and ->last_tx_id. registered/starting/start_status remain application-owned. No joint_bus/debug TX-error counters remain; alive counts parsed feedback, not every CAN frame. Device files unchanged by this replacement. Output defaults false; no firmware flashed. This supersedes earlier missing-debug build-block notes.
+
+Position-command stopping now has coast-follow and confirmed-hold phases in
+app/command/command.cpp. Below stationary_vel=0.005 m/s command is zeroed;
+position target follows only the initial feedback-velocity direction, retaining
+the furthest position on rebound. Lock after 50 consecutive command cycles with
+abs(odom_v)<0.03 m/s; a speed excursion resets the counter. New motion input exits
+stopping/hold; offline, disabled motion and startup command gating reset position
+to current odometry. Existing velocity ramp (0.006 m/s per nominal 1 ms cycle),
+yaw and leg-length mapping unchanged. Configuration: control_map.hpp.
+Debug command.stopping_x/holding_x/stop_confirm_count expose phases. H723 Debug
+and tests/host/run_command_stopping.py passed; hardware stop oscillation unverified.
+
+PS2 move now latches: L1+L2 enters; after releasing both keys, either L1 or L2 exits. Each action consumes the chord until both keys release, preventing repeat toggles. Offline/source loss clears move and requires release before re-entry. This supersedes hold-L2 instructions. H723 Debug and native PS2 latch regression pass.

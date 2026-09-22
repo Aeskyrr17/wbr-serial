@@ -76,6 +76,9 @@ struct chassis_debug
 
 struct command_debug
 {
+    bool stopping_x = false;
+    bool holding_x = false;
+    unsigned stop_confirm_count = 0;
     chassis_command command{};
     input_source source = input_source::can;
     std::uint32_t link_age_ticks = 0;

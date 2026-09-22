@@ -27,8 +27,32 @@ motion_request map_ps2(const remoter::state& rc, std::uint32_t now) noexcept
     const bool up = remoter::is_held(rc.ps2_buttons, remoter::ps2_button::up);
     const bool down = remoter::is_held(rc.ps2_buttons, remoter::ps2_button::down);
     out.len_rate = (static_cast<int>(up) - static_cast<int>(down)) * mapping::len_rate;
-    // Hold L2 to enable body motion.
-    out.move = out.online && remoter::is_held(rc.ps2_buttons, remoter::ps2_button::l2);
+    static bool move = false;
+    static bool wait_release = false; // 是否正在等待两个键都松开
+    const bool l1 = remoter::is_held(rc.ps2_buttons, remoter::ps2_button::l1);
+    const bool l2 = remoter::is_held(rc.ps2_buttons, remoter::ps2_button::l2);
+    if (!out.online)
+    {
+        move = false;
+        wait_release = true;
+    }
+    else if (wait_release)
+    {
+        // Consume one action until both keys are released.
+        if (!l1 && !l2)
+            wait_release = false;
+    }
+    else if (move && (l1 || l2))
+    {
+        move = false;
+        wait_release = true;
+    }
+    else if (!move && l1 && l2)
+    {
+        move = true;
+        wait_release = true;
+    }
+    out.move = move;
     out.v = std::fabs(rc.left_y) > mapping::deadzone ? rc.left_y * mapping::max_v : 0.0f;
     out.dyaw = std::fabs(rc.right_x) > mapping::deadzone ? -rc.right_x * mapping::max_dyaw : 0.0f;
     return out;
