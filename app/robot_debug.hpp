@@ -15,6 +15,7 @@ struct robot_tuning_t
     // Deliberately false in this migration build. Hardware validation must opt in.
     volatile bool motor_output_enabled = true;
     volatile float alpha_trim = 0.03f;
+    volatile float spin_alpha_trim = -0.03f; // Legacy SPIN equilibrium offset.
     control::pid_params len_startup{5000.0f, 0.0f, -1500.0f, 125.0f, 0.0f};
     control::pid_params len_run{2000.0f, 0.0f, -400.0f, 125.0f, 0.0f};
     control::pid_params roll{0.5f, 0.0f, 0.0f, 0.05f, 0.005f};

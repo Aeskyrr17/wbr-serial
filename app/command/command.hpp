@@ -15,6 +15,7 @@ struct motion_request
     float dyaw = 0.0f;
     float len_rate = 0.0f; // Requested leg length change, m/s.
     bool move = false;
+    bool spin = false;
     bool online = false;
     input_source source = input_source::can;
     std::uint32_t received_tick = 0;
@@ -37,6 +38,7 @@ private:
     control::slope yaw_ramp_{0.0f, mapping::dyaw_step};
     input_source source_ = input_source::can;
     std::uint32_t sequence_ = 0;
+    bool prev_spin_ = false;
     bool hold_x_ = false;
     bool stopping_x_ = false;
     int stop_direction_ = 0;

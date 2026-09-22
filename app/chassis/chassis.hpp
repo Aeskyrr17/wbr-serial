@@ -67,6 +67,9 @@ private:
     void run_flatten(const state_context& in, state_cycle& cycle) noexcept;
     void run_neutral(const state_context& in, state_cycle& cycle) noexcept;
     void run_normal(const state_context& in, state_cycle& cycle) noexcept;
+    void run_spin(const state_context& in, state_cycle& cycle) noexcept;
+    void update_balance(const state_context& in, state_cycle& cycle,
+                        lqr_mode mode, float alpha_trim) noexcept;
 
     pendulum left_{false};
     pendulum right_{true};

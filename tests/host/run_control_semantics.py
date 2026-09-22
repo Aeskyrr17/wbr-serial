@@ -8,6 +8,7 @@ import subprocess
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--test-source', default='tests/host/control_semantics.cpp')
     parser.add_argument('--root', type=Path, default=Path(__file__).resolve().parents[2])
     parser.add_argument('--cxx', default='c++', help='Native C++ compiler, or zig executable')
     parser.add_argument('--zig', action='store_true', help='Use the zig c++ subcommand')
@@ -20,7 +21,7 @@ def main():
     entry = next(e for e in database if e['file'].replace('\\', '/').endswith('/app/chassis/chassis.cpp'))
     includes = [a or b for a, b in re.findall(r'-I(?:"([^"]+)"|(\S+))', entry['command'])]
     sources = [
-        'tests/host/control_semantics.cpp', 'app/chassis/chassis.cpp',
+        args.test_source, 'app/chassis/chassis.cpp',
         'app/chassis/pendulum.cpp', 'app/chassis/vmc.cpp', 'app/chassis/odometry.cpp',
         'app/chassis/lqr.cpp', 'app/command/command.cpp', 'app/command/control_map.cpp', 'app/robot_debug.cpp',
         'pnx_libs/control/src/pid.cpp', 'pnx_libs/math/src/constrain.cpp',

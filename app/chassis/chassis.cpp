@@ -11,7 +11,7 @@ controller::controller() = default;
 
 void controller::apply_tuning() noexcept
 {
-    const auto& len = (state_ == chassis_state::normal) ? robot_tuning.len_run : robot_tuning.len_startup;
+    const auto& len = (state_ == chassis_state::normal || state_ == chassis_state::spin) ? robot_tuning.len_run : robot_tuning.len_startup;
     l_len_.tune(len);
     r_len_.tune(len);
     roll_.tune(robot_tuning.roll);
@@ -184,18 +184,17 @@ void controller::run_neutral(const state_context& in, state_cycle& cycle) noexce
     }
 }
 
-void controller::run_normal(const state_context& in, state_cycle& cycle) noexcept
+void controller::update_balance(const state_context& in, state_cycle& cycle,
+                                lqr_mode mode, float alpha_trim) noexcept
 {
     const auto& left = in.left;
     const auto& right = in.right;
     const auto& obs = in.obs;
 
     cycle.ref = {in.cmd.x, in.cmd.v, in.cmd.yaw, in.cmd.dyaw,
-                 left.alpha_eq + robot_tuning.alpha_trim, 0.0f,
-                 right.alpha_eq + robot_tuning.alpha_trim, 0.0f, 0.0f, 0.0f};
-    cycle.mode = (left.len + right.len) * 0.5f > model::Lswitch
-                     ? lqr_mode::high
-                     : lqr_mode::low;
+                 left.alpha_eq + alpha_trim, 0.0f,
+                 right.alpha_eq + alpha_trim, 0.0f, 0.0f, 0.0f};
+    cycle.mode = mode;
     const auto torque = lqr_.update(cycle.mode, left.len, right.len, obs, cycle.ref);
     auto& debug = robot_debug.chassis.control;
     std::copy(torque.begin(), torque.end(), debug.lqr_output);
@@ -217,11 +216,34 @@ void controller::run_normal(const state_context& in, state_cycle& cycle) noexcep
                     model::gravity_feedforward - left.fs;
     cycle.out.Fr = len_control(r_len_, right, cmd_len - roll_.result) +
                     model::gravity_feedforward - right.fs;
+}
+
+void controller::run_normal(const state_context& in, state_cycle& cycle) noexcept
+{
+    const auto& left = in.left;
+    const auto& right = in.right;
+    const auto mode = (left.len + right.len) * 0.5f > model::Lswitch ? lqr_mode::high : lqr_mode::low;
+    update_balance(in, cycle, mode, robot_tuning.alpha_trim);
     ++settle_count_;
     v_cmd_enabled_ = settle_count_ >= 500U;
     if (v_cmd_enabled_) len_ramp_.set_step(0.00027f);
+    if (in.cmd.spin && v_cmd_enabled_)
+        cycle.next = chassis_state::spin;
     // Legacy final assignment priority: fall protection overrides all earlier transitions.
     if (left.alpha >= 0.8f || right.alpha >= 0.8f)
+    {
+        reset_phi_control();
+        cycle.next = chassis_state::relax;
+    }
+}
+
+void controller::run_spin(const state_context& in, state_cycle& cycle) noexcept
+{
+    update_balance(in, cycle, lqr_mode::spin, robot_tuning.spin_alpha_trim);
+    v_cmd_enabled_ = true;
+    if (!in.cmd.spin && std::fabs(in.cmd.dyaw) < 0.002f)
+        cycle.next = chassis_state::normal;
+    if (in.left.alpha >= 0.8f || in.right.alpha >= 0.8f)
     {
         reset_phi_control();
         cycle.next = chassis_state::relax;
@@ -244,6 +266,9 @@ void controller::run_state(chassis_state executed, const state_context& in,
         break;
     case chassis_state::normal:
         run_normal(in, cycle);
+        break;
+    case chassis_state::spin:
+        run_spin(in, cycle);
         break;
     default:
         cycle.next = chassis_state::relax;

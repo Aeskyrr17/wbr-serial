@@ -52,7 +52,16 @@ motion_request map_ps2(const remoter::state& rc, std::uint32_t now) noexcept
         move = true;
         wait_release = true;
     }
+    static bool spin = false;
+    static bool circle_held = false;
+    const bool circle = remoter::is_held(rc.ps2_buttons, remoter::ps2_button::circle);
+    if (!out.online || !move)
+        spin = false;
+    else if (circle && !circle_held)
+        spin = !spin;
+    circle_held = circle;
     out.move = move;
+    out.spin = spin;
     out.v = std::fabs(rc.left_y) > mapping::deadzone ? rc.left_y * mapping::max_v : 0.0f;
     out.dyaw = std::fabs(rc.right_x) > mapping::deadzone ? -rc.right_x * mapping::max_dyaw : 0.0f;
     return out;

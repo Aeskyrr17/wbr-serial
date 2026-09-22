@@ -5,6 +5,7 @@ namespace robot::command::mapping
 // Body-frame commands: forward m/s and yaw rate rad/s. No gimbal following.
 inline constexpr float max_v = 0.5f;
 inline constexpr float max_dyaw = 1.5f;
+inline constexpr float spin_rate = 10.0f; // Legacy ordinary spin, rad/s.
 inline constexpr float len_rate = 0.05f; // Hold D-pad: 5 cm/s.
 inline constexpr float can_v_scale = 0.2f;
 inline constexpr float can_dyaw_scale = 0.1f;

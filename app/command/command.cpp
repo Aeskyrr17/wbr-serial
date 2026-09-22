@@ -64,9 +64,13 @@ command_frame mapper::step(const motion_request& request, const robot_state& sta
     const bool online = request.online && now - request.received_tick <= mapping::offline_ticks;
     auto& cmd = out.chassis;
     cmd.move = online && request.move;
+    const bool ready = state.state_executed == chassis_state::normal ||
+                       state.state_executed == chassis_state::spin;
+    cmd.spin = cmd.move && ready && state.v_cmd_enabled && request.spin;
+    const bool spin_active = cmd.move && (cmd.spin || state.state_executed == chassis_state::spin);
     if (!cmd.move)
         len_ref_ = chassis::model::Lmin;
-    else if (state.state_executed == chassis_state::normal)
+    else if (ready)
         len_ref_ += request.len_rate * mapping::dt;
     len_ref_ = std::clamp(len_ref_, chassis::model::Lmin, chassis::model::Lmax);
     cmd.len = len_ref_;
@@ -77,7 +81,13 @@ command_frame mapper::step(const motion_request& request, const robot_state& sta
         yaw_ramp_.set_value(0.0f);
         hold_yaw_ = false;
     }
-    if (cmd.move && state.v_cmd_enabled)
+    if (spin_active)
+    {
+        v_ramp_.set_value(0.0f);
+        cmd.v = 0.0f;
+        cmd.dyaw = yaw_ramp_.update(cmd.spin ? mapping::spin_rate : 0.0f);
+    }
+    else if (cmd.move && state.v_cmd_enabled)
     {
         cmd.v = v_ramp_.update(std::clamp(request.v, -mapping::max_v, mapping::max_v));
         cmd.dyaw = yaw_ramp_.update(std::clamp(request.dyaw, -mapping::max_dyaw, mapping::max_dyaw));
@@ -88,6 +98,12 @@ command_frame mapper::step(const motion_request& request, const robot_state& sta
         yaw_ramp_.set_value(0.0f);
     }
 
+    if (spin_active != prev_spin_)
+    {
+        reset_position(state.x);
+        hold_yaw_ = false;
+    }
+    prev_spin_ = spin_active;
     if (!cmd.move)
     {
         reset_position(state.x);
@@ -96,7 +112,11 @@ command_frame mapper::step(const motion_request& request, const robot_state& sta
     }
     else
     {
-        if (!state.v_cmd_enabled)
+        if (spin_active)
+        {
+            cmd.x = held_x_;
+        }
+        else if (!state.v_cmd_enabled)
         {
             reset_position(state.x);
             cmd.x = held_x_;
@@ -105,7 +125,12 @@ command_frame mapper::step(const motion_request& request, const robot_state& sta
         {
             update_position(cmd, state);
         }
-        if (std::fabs(cmd.dyaw) < 0.002f)
+        if (spin_active)
+        {
+            hold_yaw_ = false;
+            cmd.yaw = state.yaw; // Legacy spin controls yaw rate, not yaw position.
+        }
+        else if (std::fabs(cmd.dyaw) < 0.002f)
         {
             if (!hold_yaw_) { held_yaw_ = state.yaw; hold_yaw_ = true; }
             cmd.yaw = held_yaw_;

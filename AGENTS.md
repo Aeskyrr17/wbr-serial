@@ -528,3 +528,17 @@ Debug command.stopping_x/holding_x/stop_confirm_count expose phases. H723 Debug
 and tests/host/run_command_stopping.py passed; hardware stop oscillation unverified.
 
 PS2 move now latches: L1+L2 enters; after releasing both keys, either L1 or L2 exits. Each action consumes the chord until both keys release, preventing repeat toggles. Offline/source loss clears move and requires release before re-entry. This supersedes hold-L2 instructions. H723 Debug and native PS2 latch regression pass.
+
+Ordinary SPIN is now available in the main chassis state machine. Native PS2 circle
+press toggles the spin request while move is enabled; holding the button does not
+repeat. Offline or leaving move clears the request. Startup completes normally;
+spin requires NORMAL readiness. Mapping holds x, sets v=0 and yaw_ref=current yaw,
+and ramps dyaw to mapping::spin_rate=10 rad/s (legacy value), using existing
+0.02 rad/s per command cycle yaw ramp. A second circle press ramps to zero before
+SPIN -> NORMAL; exit relatches current x/yaw. Motion disable bypasses the ramp
+and enters existing Relax. Joysticks are suppressed during spin/deceleration.
+D-pad length remains available, with no periodic leg-length motion or TRI feature.
+SPIN uses existing LQRKSpincoeffs and tunable spin_alpha_trim=-0.03 rad from the
+legacy state. Shared balance output keeps length PID + gravity - fs, roll and
+existing limits; VMC/Device/BSP unchanged. H723 Debug, spin_semantics.cpp and
+command_stopping.cpp pass. No hardware spin validation, flash or commit.

@@ -15,6 +15,7 @@ enum class chassis_state : std::uint8_t
     flatten,
     neutral,
     normal,
+    spin,
 };
 
 enum class lqr_mode : std::uint8_t { low = 0, high, spin };
@@ -28,6 +29,7 @@ struct chassis_command
     float yaw = 0.0f;
     float dyaw = 0.0f;
     bool move = false;
+    bool spin = false;
 };
 
 struct command_frame
