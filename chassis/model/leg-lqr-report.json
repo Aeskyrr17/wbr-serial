@@ -1,0 +1,170 @@
+{
+  "state_order": [
+    "roll",
+    "droll",
+    "H",
+    "dH"
+  ],
+  "input_order": [
+    "F_N_left",
+    "F_N_right"
+  ],
+  "positive_roll": "left high, right low; IMU +X forward, +Z up",
+  "force_semantics": "total support in roll plane before cos(roll); sagittal projection applied before VMC",
+  "physical": {
+    "body_mass": 14.0,
+    "leg_mass": 1.62,
+    "wheel_mass": 0.21,
+    "half_track": 0.215,
+    "gravity": 9.80665,
+    "roll_inertia": 0.64,
+    "vertical_damping": 8.0,
+    "total_mass": 17.660000000000004
+  },
+  "parameter_sources": {
+    "body_mass,wheel_mass,wheel_track,gravity": "app/chassis/chassis_model.hpp",
+    "single_leg_mass": "tools/model/model_params.py",
+    "roll_inertia,vertical_damping": "SDUT reference 0.64 kg m^2 and 8 N s/m; uncalibrated"
+  },
+  "sample_time": 0.001,
+  "Q_diag": [
+    2200000.0,
+    12000.0,
+    6000000.0,
+    160000.0
+  ],
+  "R_diag": [
+    1.0,
+    0.9
+  ],
+  "A": [
+    [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ],
+    [
+      -0.0,
+      0.0,
+      0.0,
+      -0.45300113250283114
+    ]
+  ],
+  "B": [
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.3359375,
+      -0.3359375
+    ],
+    [
+      0.0,
+      0.0
+    ],
+    [
+      0.05662514156285389,
+      0.05662514156285389
+    ]
+  ],
+  "Ad": [
+    [
+      1.0,
+      0.001,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      1.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      1.0,
+      0.0009997735336315463
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.9995471014570185
+    ]
+  ],
+  "Bd": [
+    [
+      1.6796875e-07,
+      -1.6796875e-07
+    ],
+    [
+      0.00033593750000000003,
+      -0.00033593750000000003
+    ],
+    [
+      2.830829605667568e-08,
+      2.830829605667568e-08
+    ],
+    [
+      5.6612317872680996e-05,
+      5.6612317872680996e-05
+    ]
+  ],
+  "K_negative_feedback": [
+    [
+      -1005.854007793931,
+      -92.18999589281903,
+      -1716.2161427524834,
+      -326.01760183919134
+    ],
+    [
+      1079.371926391998,
+      97.89320807905354,
+      -1773.400921031976,
+      -335.35957432939654
+    ]
+  ],
+  "equilibrium_input": [
+    86.59271950000002,
+    86.59271950000002
+  ],
+  "checks": {
+    "controllability_rank": 4,
+    "closed_loop_poles": [
+      [
+        0.9496709808689385,
+        0.0
+      ],
+      [
+        0.9682820719558314,
+        0.0
+      ],
+      [
+        0.9860638921907077,
+        0.0
+      ],
+      [
+        0.99378294726965,
+        0.0
+      ]
+    ],
+    "spectral_radius": 0.99378294726965,
+    "float32_spectral_radius": 0.9937829475458045,
+    "relative_dare_residual": 1.437124898117749e-15
+  }
+}

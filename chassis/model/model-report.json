@@ -1,0 +1,142 @@
+{
+  "mode": "regenerate",
+  "basis": [
+    "1",
+    "L",
+    "R",
+    "L^2",
+    "L*R",
+    "R^2"
+  ],
+  "shape": [
+    4,
+    10,
+    6
+  ],
+  "sample_order": "outer left, inner right (right changes fastest)",
+  "training_range_m": [
+    0.1,
+    0.37
+  ],
+  "runtime_range_m": [
+    0.16,
+    0.35
+  ],
+  "firmware_compatibility": {
+    "wheel_radius_m": 0.06,
+    "wheel_track_m": 0.43,
+    "body_mass_kg": 14.0
+  },
+  "matlab_model": {
+    "wheel_radius": 0.0752,
+    "half_track": 0.211,
+    "body_com_offset": 0.126,
+    "wheel_mass": 0.21,
+    "leg_mass": 1.62,
+    "body_mass": 13.85,
+    "wheel_inertia": 0.00038332661,
+    "body_inertia": 0.462592306,
+    "yaw_inertia": 0.314373184,
+    "gravity": 9.78
+  },
+  "alpha_eq": {
+    "coefficients": [
+      0.280918,
+      -1.101757,
+      1.232768
+    ],
+    "source": "legacy config inheritance"
+  },
+  "qr": {
+    "low": [
+      [
+        300,
+        20,
+        300,
+        100,
+        6000,
+        30,
+        6000,
+        30,
+        60000,
+        100
+      ],
+      [
+        20,
+        20,
+        1,
+        1
+      ]
+    ],
+    "high": [
+      [
+        200,
+        20,
+        300,
+        100,
+        5000,
+        30,
+        5000,
+        30,
+        50000,
+        100
+      ],
+      [
+        20,
+        20,
+        1,
+        1
+      ]
+    ],
+    "spin": [
+      [
+        300,
+        100,
+        300,
+        100,
+        25000,
+        800,
+        25000,
+        800,
+        220000,
+        2500
+      ],
+      [
+        20,
+        20,
+        1,
+        1
+      ]
+    ]
+  },
+  "checks": {
+    "low": {
+      "max_fit_abs": 1.233738832521795,
+      "max_care_inf": 4.2158517232770976e-09,
+      "dense_max_closed_loop_real": -0.5049335237342236,
+      "dense_1ms_max_spectral_radius": 0.9994951939337441
+    },
+    "high": {
+      "max_fit_abs": 1.0651660155388472,
+      "max_care_inf": 2.439305035739636e-09,
+      "dense_max_closed_loop_real": -0.47779910021957855,
+      "dense_1ms_max_spectral_radius": 0.9995223150275931
+    },
+    "spin": {
+      "max_fit_abs": 2.0594606158457793,
+      "max_care_inf": 1.5050094503976652e-08,
+      "dense_max_closed_loop_real": -0.36115307152424025,
+      "dense_1ms_max_spectral_radius": 0.999638912136396
+    },
+    "max_coefficient_delta_from_legacy": {
+      "low": 330.67063752141723,
+      "high": 310.66140342589347,
+      "spin": 20.321317872311056
+    }
+  },
+  "legacy_source_sha256": "145ab357bd2871509dab2a934819e7aad3f9c50fff5cf500c6f9b2ccda878531",
+  "versions": {
+    "python": "3.13.13",
+    "numpy": "2.5.1"
+  }
+}

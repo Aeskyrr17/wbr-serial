@@ -7,6 +7,10 @@
     "cmake.useCMakePresets": "always",
     "cmake.configureOnOpen": false,
     "C_Cpp.default.configurationProvider": "",
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "clangd.arguments": [
+        "--query-driver=**/arm-none-eabi-*"
+    ],
     "C_Cpp.formatting": "clangFormat",
     "C_Cpp.clang_format_style": "file",
     "[c]": {
