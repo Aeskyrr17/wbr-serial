@@ -142,6 +142,7 @@ cmd_frame mapper::step(const motion_req& request, const chassis_state& state,
         }
     }
     dbg.cmd.stopping_x = stopping_x_;
+    dbg.cmd.len_rate = request.len_rate;
     dbg.cmd.holding_x = hold_x_;
     dbg.cmd.stop_confirm_count = stop_confirm_count_;
     dbg.cmd.request_move = request.move;

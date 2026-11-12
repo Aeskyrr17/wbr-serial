@@ -4,6 +4,7 @@
 
 #include "motor.hpp"
 
+#include <array>
 #include <cstdint>
 
 namespace chassis
@@ -18,9 +19,29 @@ enum class chassis_fsm : std::uint8_t
     normal,
     spin,
     recover,
+    airborne,
 };
 
+
 enum class lqr_mode : std::uint8_t { low = 0, high, spin };
+
+struct lqr_state
+{
+    float x = 0.0f;
+    float v = 0.0f;
+    float yaw = 0.0f;
+    float dyaw = 0.0f;
+    float l_alpha = 0.0f;
+    float l_dalpha = 0.0f;
+    float r_alpha = 0.0f;
+    float r_dalpha = 0.0f;
+    float pitch = 0.0f;
+    float dpitch = 0.0f;
+    [[nodiscard]] std::array<float, 10> array() const noexcept
+    {
+        return {x, v, yaw, dyaw, l_alpha, l_dalpha, r_alpha, r_dalpha, pitch, dpitch};
+    }
+};
 
 struct chassis_cmd
 {
@@ -81,6 +102,7 @@ struct leg_state
     float leg_force = 0.0f;     //< Axial leg force (N)
     float hip_torque = 0.0f;    //< Hip joint torque (Nm)
     float normal_force = 0.0f;
+    bool offground = false; // NORMAL/AIRBORNE 中按力阈值判断，其余状态为 false。
     bool flat = false;
     bool neutral = false;
     leg_phi_state phi_state{};
@@ -102,6 +124,13 @@ struct chassis_output
     float r_joint4 = 0.0f;
 };
 
+enum class offground_state : std::uint8_t
+{
+    on_ground = 0,
+    left_off_ground,
+    right_off_ground,
+    both_off_ground
+};
 // Latest chassis measurements and control status for command mapping/debugging.
 struct chassis_state
 {
@@ -118,7 +147,7 @@ struct chassis_state
     chassis_fsm fsm_executed = chassis_fsm::relax; // Mode used for this output.
     chassis_fsm fsm_next = chassis_fsm::relax; // Mode selected for the next step.
     float normal_force = 0.0f;
-    bool offground = false;
+    offground_state offground = offground_state::on_ground;
 };
 
 } // namespace chassis

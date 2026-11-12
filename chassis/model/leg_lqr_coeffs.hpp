@@ -12,7 +12,7 @@ inline constexpr float equilibrium_force = 86.5927195f;
 // Rows: left/right total support force (N). Columns: roll, droll, H, dH.
 // Negative feedback is already included: F = Mg/2 + gain * (obs - ref).
 inline constexpr float gain[2][4] = {
-    {-1005.85401f, -92.1899959f, -1716.21614f, -326.017602f},
-    {1079.37193f, 97.8932081f, -1773.40092f, -335.359574f},
+    {-850.558045f, -53.1156597f, -2211.23068f, -196.131709f},
+    {850.558045f, 53.1156597f, -2211.23068f, -196.131709f},
 };
 } // namespace chassis::leg_lqr_model

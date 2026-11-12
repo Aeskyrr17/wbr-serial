@@ -16,8 +16,7 @@ class lqr
 {
 public:
     std::array<float, 4> update(lqr_mode mode, float llen, float rlen,
-                                const std::array<float, 10>& obs,
-                                const std::array<float, 10>& ref) noexcept;
+                                const lqr_state& obs, const lqr_state& ref) noexcept;
     [[nodiscard]] const std::array<float, 40>& gain() const noexcept { return gain_; }
 
     [[nodiscard]] const std::array<float, 4>& raw_output() const noexcept { return raw_output_; }
@@ -28,8 +27,7 @@ private:
 };
 
 inline std::array<float, 4> lqr::update(lqr_mode mode, float llen, float rlen,
-                                 const std::array<float, 10>& obs,
-                                 const std::array<float, 10>& ref) noexcept
+                                 const lqr_state& obs, const lqr_state& ref) noexcept
 {
     llen = std::round(std::clamp(llen, model::Lmin, model::Lmax) * 100.0f) / 100.0f;
     rlen = std::round(std::clamp(rlen, model::Lmin, model::Lmax) * 100.0f) / 100.0f;
@@ -47,9 +45,12 @@ inline std::array<float, 4> lqr::update(lqr_mode mode, float llen, float rlen,
     }
 
     std::array<float, 4> output{};
+    const auto obs_array = obs.array();
+    const auto ref_array = ref.array();
     for (std::size_t row = 0; row < output.size(); ++row)
-        for (std::size_t column = 0; column < obs.size(); ++column)
-            output[row] += gain_[row * obs.size() + column] * (obs[column] - ref[column]);
+        for (std::size_t column = 0; column < obs_array.size(); ++column)
+            output[row] += gain_[row * obs_array.size() + column] *
+                           (obs_array[column] - ref_array[column]);
     raw_output_ = output;
     output[0] = std::clamp(output[0], -model::max_wheel_torque, model::max_wheel_torque);
     output[1] = std::clamp(output[1], -model::max_wheel_torque, model::max_wheel_torque);

@@ -1,8 +1,6 @@
 #pragma once
 
 #include "robot_types.hpp"
-#include "pid.hpp"
-#include "model/chassis_model.hpp"
 
 #include <cstdint>
 
@@ -15,8 +13,8 @@ struct pid_param { volatile float kp, ki, kd; };
 
 struct robot_tuning_t
 {
-    // Deliberately false in this migration build. Hardware validation must opt in.
-    volatile bool motor_output_enabled = false;
+    // Enables automatic joint startup and control output.
+    volatile bool motor_output_enabled = true;
     volatile float alpha_trim = 0.03f;
     volatile float spin_alpha_trim = -0.03f; // Legacy SPIN equilibrium offset.
     pid_param len_startup{5000.0f, 0.0f, -100.0f};
@@ -42,8 +40,8 @@ struct leg_lqr_debug
 {
     float obs[4]{}; // roll, droll, projected hip midpoint H, dH.
     float ref[4]{};
-    float support_force[2]{}; // Total support before spring subtraction (N); RELAX preview only.
-    bool active = false; // Snapshot: true only when NORMAL ran this cycle.
+    float support_force[2]{}; // Total support before spring subtraction (N).
+    bool active = false; // True when leg LQR ran in NORMAL or AIRBORNE this cycle.
 };
 
 struct control_debug
@@ -67,42 +65,56 @@ struct joint_torque_debug
     float r_joint4 = 0.0f;
 };
 
+struct contact_debug
+{
+    std::uint32_t off_count = 0; // Consecutive NORMAL cycles below the force threshold.
+    std::uint32_t touch_count = 0; // Consecutive AIRBORNE cycles matching touchdown criteria.
+    float dlen_peak = 0.0f; // Peak leg extension rate in this AIRBORNE episode, m/s.
+    bool air_seen = false;
+    bool touchdown = false; // Contact confirmed for the current AIRBORNE episode.
+};
+
 struct chassis_debug
 {
     volatile std::uint32_t sample_seq = 0; // Probe: accept equal even sequence before/after reading.
     std::uint32_t sample_tick = 0; // Both leg snapshots belong to this solve cycle.
-    float spring_force = chassis::model::spring_force;
+    float len_cmd = 0.0f; // Length command consumed by the control thread, m.
+    float len_target = 0.0f; // Clamped length target, m.
+    float len_ref = 0.0f; // Ramp output used by the controller, m.
+    contact_debug l_contact{};
+    contact_debug r_contact{};
     chassis_state state{};
     leg_state left{};
     leg_state right{};
     chassis_output output{}; // Combined forces and final limited motor torques.
     control_debug control{};
     joint_torque_debug joint_raw{}; // Motor coordinates, before joint limits.
-    float l_phi_ref = 0.0f;
-    float r_phi_ref = 0.0f;
-    float obs[10]{};
-    float ref[10]{};
+    lqr_state obs{};
+    lqr_state ref{};
     float roll = 0.0f;
     float droll = 0.0f;
-    float normal_force = 0.0f;
     std::uint8_t lqr_mode = 0;
 };
 
 struct command_debug
 {
+    float len_rate = 0.0f; // PS2 leg-length request, m/s.
     bool stopping_x = false;
     bool holding_x = false;
     unsigned stop_confirm_count = 0;
     chassis_cmd cmd{};
     std::uint32_t link_age_ticks = 0;
     bool link_online = false;
-    std::uint16_t ps2_buttons = 0; // Callback: normalized held-button mask.
-    bool ps2_move = false; // Callback mapping result.
     bool request_move = false; // Request actually consumed by mapper.
 };
 
 struct runtime_debug
 {
+    std::uint8_t joints_enabled = 0; // Bit order: L1, L4, R1, R4; feedback-confirmed.
+    std::uint8_t joint_error[4]{}; // Raw DM status, in the same order.
+    bool motors_online = false; // All six motors have current feedback.
+    bool imu_valid = false; // Online, running, and received within 100 ms.
+    bool command_fresh = false; // Command thread published within its timeout.
     std::uint32_t period_us = 0;
     std::uint32_t exec_us = 0;
     std::uint32_t max_exec_us = 0;

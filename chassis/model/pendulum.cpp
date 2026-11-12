@@ -35,7 +35,11 @@ bool pendulum::update(const ::motor::feedback_t& joint1, const ::motor::feedback
     state_.len = solved.len;
     state_.phi = solved.phi;
     if (!state_.valid)
+    {
+        state_.offground = false;
+        velocity_initialized_ = false;
         return false;
+    }
 
     const auto velocity = vmc_.velocity(dphi1, dphi4);
     const auto load = vmc_.generalized_force(tq1, tq4); // [F_L, tau_l]
@@ -64,9 +68,12 @@ bool pendulum::update(const ::motor::feedback_t& joint1, const ::motor::feedback
                       model::alpha_eq[2] * state_.len * state_.len;
     const float ca = std::cos(state_.alpha), sa = std::sin(state_.alpha);
     const float vertical_force = (state_.leg_force + state_.spring.fs) * ca;
-    //! TODO: 确定是否要除以dt
-    const float ddlen = state_.dlen - prev_dlen_;
-    const float ddalpha = state_.dalpha - prev_dalpha_;
+    const float ddlen = velocity_initialized_
+                            ? (state_.dlen - prev_dlen_) / model::control_dt
+                            : 0.0f;
+    const float ddalpha = velocity_initialized_
+                              ? (state_.dalpha - prev_dalpha_) / model::control_dt
+                              : 0.0f;
     const float zw = (az - model::gravity) - ddlen * ca +
                      2.0f * state_.dlen * state_.dalpha * sa +
                      state_.len * ddalpha * sa +
@@ -77,7 +84,14 @@ bool pendulum::update(const ::motor::feedback_t& joint1, const ::motor::feedback
     state_.flat = state_.phi >= 2.5f && state_.phi <= 3.1f;
     prev_dlen_ = state_.dlen;
     prev_dalpha_ = state_.dalpha;
+    velocity_initialized_ = true;
     return true;
+}
+
+void pendulum::detect_offground(bool enabled) noexcept
+{
+    state_.offground = enabled && state_.valid && std::isfinite(state_.normal_force) &&
+                       state_.normal_force < model::offground_single_bound;
 }
 
 std::array<float, 2> pendulum::joint_torque(float leg_force, float hip_torque) const noexcept

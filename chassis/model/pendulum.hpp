@@ -14,6 +14,8 @@ public:
 
     bool update(const ::motor::feedback_t& joint1, const ::motor::feedback_t& joint4,
                 const ::imu::attitude::state& imu, float az) noexcept;
+    // Call after update(); disabling detection clears the offground flag.
+    void detect_offground(bool enabled) noexcept;
     std::array<float, 2> joint_torque(float leg_force, float hip_torque) const noexcept;
     void reset_tracking() noexcept;
 
@@ -25,6 +27,7 @@ private:
     leg_state state_{};
     float prev_dlen_ = 0.0f;
     float prev_dalpha_ = 0.0f;
+    bool velocity_initialized_ = false;
     float total_phi_ = 0.0f;
     float prev_phi_ = 0.0f;
     bool phi_initialized_ = false;

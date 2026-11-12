@@ -119,8 +119,8 @@ inline constexpr float min_bias_stddev = 0.00020000000000000001f;
 } // namespace eskf
 } // namespace ahrs
 
-inline constexpr math::vector3 bmi088_gyro_offset{-0.0052809934869999997f, -0.000237223741f, -0.000647540528f};
-inline constexpr math::vector3 bmi088_accel_offset{0.0038458286072392397f, 0.0064703959499354804f, 0.014968990490337293f};
+inline constexpr math::vector3 bmi088_gyro_offset{0.0033382741f, -0.00028282741999999998f, -0.00082811113999999996f};
+inline constexpr math::vector3 bmi088_accel_offset{0.0038458286000000001f, 0.0064703957000000001f, 0.01496899f};
 
 inline constexpr ::referee::config referee{
     referee_uart, 6, 1, 1000};

@@ -38,5 +38,5 @@ SAMPLE_TIME = 0.001  # Current control thread: 1 ms, not the reference MPC's 10 
 # Approximate per-leg height stiffness 2000 N/m, roll stiffness 1000 N/rad.
 # (roll, droll, H, dH)
 # Q_DIAG = (2_000_000.0, 20_000.0, 8_000_000.0, 200_000.0)
-Q_DIAG = (800_000.0, 150.0, 800_000.0, 100.0)
+Q_DIAG = (1_500_000.0, 600.0, 10_000_000.0, 2000.0)
 R_DIAG = (1.0, 1.0)
