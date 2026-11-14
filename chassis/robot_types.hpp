@@ -20,6 +20,7 @@ enum class chassis_fsm : std::uint8_t
     spin,
     recover,
     airborne,
+    spring_test,
 };
 
 

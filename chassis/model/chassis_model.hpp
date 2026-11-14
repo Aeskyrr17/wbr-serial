@@ -8,6 +8,7 @@ namespace chassis::model
 inline constexpr float pi = 3.14159265358979323846f;
 inline constexpr float gravity = 9.80665f;
 inline constexpr float control_dt = 0.001f; // Nominal control period, s.
+inline constexpr bool spring_test = false; // Temporary left-leg spring cancellation test.
 inline constexpr float L1 = 0.220f;
 inline constexpr float L2 = 0.260f;
 inline constexpr float Lmin = 0.16f;
@@ -29,7 +30,7 @@ inline constexpr float joint_velocity_limit = 45.0f; // rad/s
 inline constexpr float joint_torque_limit = 54.0f; // Nm
 inline constexpr float joint_velocity_scale = 1.0f;
 inline constexpr bool joint_wrap_position = false;
-inline constexpr float spring_force = 250.0f;
+inline constexpr float spring_force = 450.0f;
 inline constexpr float spring_d1 = 0.03f;
 inline constexpr float spring_d2 = 0.05f;
 inline constexpr float spring_angle = 0.2164f;

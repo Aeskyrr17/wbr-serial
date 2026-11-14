@@ -28,7 +28,7 @@ msg::topic<cmd_frame> command_topic{};
 msg::topic<chassis_state> state_topic{};
 msg::subscriber<cmd_frame> command_sub{};
 msg::subscriber<chassis_state> state_sub{};
-constexpr motor::dm::config_t joint_params{
+motor::dm::config_t joint_params{
     model::joint_position_limit, model::joint_velocity_limit, model::joint_torque_limit,
     model::joint_velocity_scale, model::joint_wrap_position};
 motor::dm::dm8009p l_joint1{joint_params, cfg::joint_mode};
@@ -46,10 +46,10 @@ remotes::ps2::spi ps2{cfg::ps2_spi, cfg::ps2_cs, ps2_tx, ps2_rx};
 bool init_motors() noexcept
 {
     const auto bus = cfg::joint_bus.instance;
-    if (!joints.register_motor(l_joint1, bus, cfg::l_joint1.control_id, cfg::l_joint1.feedback_id) ||
-        !joints.register_motor(l_joint4, bus, cfg::l_joint4.control_id, cfg::l_joint4.feedback_id) ||
-        !joints.register_motor(r_joint1, bus, cfg::r_joint1.control_id, cfg::r_joint1.feedback_id) ||
-        !joints.register_motor(r_joint4, bus, cfg::r_joint4.control_id, cfg::r_joint4.feedback_id) ||
+    if (!joints.register_motor(l_joint1, bus, cfg::l_joint1_cmd_id, cfg::l_joint1_fdb_id) ||
+        !joints.register_motor(l_joint4, bus, cfg::l_joint4_cmd_id, cfg::l_joint4_fdb_id) ||
+        !joints.register_motor(r_joint1, bus, cfg::r_joint1_cmd_id, cfg::r_joint1_fdb_id) ||
+        !joints.register_motor(r_joint4, bus, cfg::r_joint4_cmd_id, cfg::r_joint4_fdb_id) ||
         !wheels.register_motor(l_wheel, cfg::wheel_bus.instance, cfg::l_wheel) ||
         !wheels.register_motor(r_wheel, cfg::wheel_bus.instance, cfg::r_wheel))
     {
@@ -63,37 +63,15 @@ bool init_motors() noexcept
            bsp::can::init(cfg::wheel_bus) == pnxtypes::status::ok;
 }
 
-std::uint8_t feedback(motor_fdb& fdb) noexcept
+std::uint8_t update_feedback() noexcept
 {
     std::uint8_t updated = 0;
-    if (joints.update_feedback(l_joint1))
-    {
-        updated |= 0x01U;
-    }
-    if (joints.update_feedback(l_joint4))
-    {
-        updated |= 0x02U;
-    }
-    if (joints.update_feedback(r_joint1))
-    {
-        updated |= 0x04U;
-    }
-    if (joints.update_feedback(r_joint4))
-    {
-        updated |= 0x08U;
-    }
+    updated |= joints.update_feedback(l_joint1) ? 0x01U : 0U;
+    updated |= joints.update_feedback(l_joint4) ? 0x02U : 0U;
+    updated |= joints.update_feedback(r_joint1) ? 0x04U : 0U;
+    updated |= joints.update_feedback(r_joint4) ? 0x08U : 0U;
     wheels.update_feedback(l_wheel);
     wheels.update_feedback(r_wheel);
-    fdb.l_j1 = l_joint1.fdb;
-    fdb.l_j4 = l_joint4.fdb;
-    fdb.r_j1 = r_joint1.fdb;
-    fdb.r_j4 = r_joint4.fdb;
-    fdb.l_w = l_wheel.fdb;
-    fdb.r_w = r_wheel.fdb;
-    fdb.motors_online = l_wheel.motor_state == motor::state::online &&
-        r_wheel.motor_state == motor::state::online &&
-        l_joint1.motor_state == motor::state::online && l_joint4.motor_state == motor::state::online &&
-        r_joint1.motor_state == motor::state::online && r_joint4.motor_state == motor::state::online;
     return updated;
 }
 
@@ -104,9 +82,13 @@ bool stop_motors() noexcept
     const bool l4_stopped = joints.special(l_joint4, disable);
     const bool r1_stopped = joints.special(r_joint1, disable);
     const bool r4_stopped = joints.special(r_joint4, disable);
+    l_wheel.cmd.current = 0.0f;
+    r_wheel.cmd.current = 0.0f;
+    wheels.update();
     const std::uint8_t zero[8]{};
-    return (bsp::can::transmit(cfg::wheel_bus.instance, 0x200, zero, 8) ==
-            pnxtypes::status::ok) && l1_stopped && l4_stopped && r1_stopped && r4_stopped;
+    const bool wheels_stopped =
+        bsp::can::transmit(cfg::wheel_bus.instance, 0x200, zero, 8) == pnxtypes::status::ok;
+    return l1_stopped && l4_stopped && r1_stopped && r4_stopped && wheels_stopped;
 }
 
 bool joints_ready() noexcept
@@ -133,8 +115,7 @@ bool enable_joint(motor::dm::motor& joint, std::uint8_t bit, std::uint8_t& confi
             last_send = now;
             sent = joints.special(joint, motor::dm::special_command::enable) || sent;
         }
-        motor_fdb fdb{};
-        const auto updated = feedback(fdb);
+        const auto updated = update_feedback();
         joints.update();
         wheels.update();
         joints.transmit(static_cast<std::uint32_t>(bsp::dwt::timeline_us()));
@@ -205,8 +186,18 @@ void run_control(ULONG) noexcept
         {
             command = {};
         }
+        (void)update_feedback();
         motor_fdb fdb{};
-        (void)feedback(fdb);
+        fdb.l_j1 = l_joint1.fdb;
+        fdb.l_j4 = l_joint4.fdb;
+        fdb.r_j1 = r_joint1.fdb;
+        fdb.r_j4 = r_joint4.fdb;
+        fdb.l_w = l_wheel.fdb;
+        fdb.r_w = r_wheel.fdb;
+        fdb.motors_online = l_wheel.motor_state == motor::state::online &&
+            r_wheel.motor_state == motor::state::online &&
+            l_joint1.motor_state == motor::state::online && l_joint4.motor_state == motor::state::online &&
+            r_joint1.motor_state == motor::state::online && r_joint4.motor_state == motor::state::online;
         const bool motors_online = fdb.motors_online;
         const bool output_requested = tuning.motor_output_enabled;
         if (enabled && (!output_requested || !joints_ready()))

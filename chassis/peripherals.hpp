@@ -16,16 +16,14 @@ inline constexpr bsp::can::fd_config joint_bus{
 inline constexpr bsp::can::config wheel_bus{
     bsp::can::handle::fdcan2, bsp::can::id_type::standard};
 
-struct joint_binding
-{
-    std::uint16_t control_id;
-    std::uint16_t feedback_id;
-};
-// Old handler maps feedback ID = control ID - 0x01 + 0x05.
-inline constexpr joint_binding l_joint1{0x02, 0x06};
-inline constexpr joint_binding l_joint4{0x01, 0x05};
-inline constexpr joint_binding r_joint1{0x04, 0x08};
-inline constexpr joint_binding r_joint4{0x03, 0x07};
+inline constexpr std::uint16_t l_joint1_cmd_id = 0x02;
+inline constexpr std::uint16_t l_joint1_fdb_id = 0x06;
+inline constexpr std::uint16_t l_joint4_cmd_id = 0x01;
+inline constexpr std::uint16_t l_joint4_fdb_id = 0x05;
+inline constexpr std::uint16_t r_joint1_cmd_id = 0x04;
+inline constexpr std::uint16_t r_joint1_fdb_id = 0x08;
+inline constexpr std::uint16_t r_joint4_cmd_id = 0x03;
+inline constexpr std::uint16_t r_joint4_fdb_id = 0x07;
 inline constexpr std::uint16_t l_wheel = 0x201;
 inline constexpr std::uint16_t r_wheel = 0x202;
 inline constexpr auto wheel_ratio = motor::dji::m3508::gear_ratio::xroll_gearbox;

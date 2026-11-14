@@ -87,159 +87,6 @@ void controller::relax_right() noexcept
     right_.reset_tracking();
 }
 
-void controller::run_relax(const inputs& in, step_out& out) noexcept
-{
-    const auto& left = in.left;
-
-    relax_left();
-    relax_right();
-    odom_.reset();
-    target_len_ = model::Lmin;
-    len_ramp_.set_value(left.len);
-    out.recovered = in.imu.accel.z >= 0.0f;
-    settle_count_ = 0;
-
-    if (in.valid && in.cmd.move)
-    {
-        out.fsm_next = out.recovered ? chassis_fsm::flatten : chassis_fsm::recover;
-    }
-
-    // RELAX preview only: update watch values without assigning any actuator output.
-    const auto leg_obs = leg_lqr::observe(in.imu, left, in.right);
-    const auto leg_ref = leg_lqr::reference(
-        std::clamp(in.cmd.len, model::Lmin, model::Lmax), 0.0f, tuning.alpha_trim);
-    const auto support = leg_lqr_.update(leg_obs, leg_ref);
-    auto& leg_debug = out.debug.leg_lqr;
-    std::copy(leg_obs.begin(), leg_obs.end(), leg_debug.obs);
-    std::copy(leg_ref.begin(), leg_ref.end(), leg_debug.ref);
-    std::copy(support.begin(), support.end(), leg_debug.support_force);
-    leg_debug.active = false;
-}
-
-void controller::run_recover(const inputs& in, step_out& out) noexcept
-{
-    odom_.reset();
-    if (in.imu.accel.z > 5.0f && std::fabs(in.imu.pitch) < 0.35f &&
-        std::fabs(in.imu.gyro.y) < 1.0f)
-    {
-        relax_left();
-        relax_right();
-        out.recovered = true;
-        out.fsm_next = chassis_fsm::flatten;
-        return;
-    }
-
-    const auto& param = tuning.phi_recover;
-    l_phi_.pid.tune(param.kp, param.ki, param.kd);
-    r_phi_.pid.tune(param.kp, param.ki, param.kd);
-    const bool positive = in.imu.pitch > 0.0f;
-    const float target = positive ? 0.0f : model::pi;
-    out.output.Tpl = update_phi_control(l_phi_, in.left, left_.total_phi(), target, 0.005f,
-                                           positive, out.debug.l_phi);
-    out.output.Tpr = update_phi_control(r_phi_, in.right, right_.total_phi(), target, 0.005f,
-                                           positive, out.debug.r_phi);
-    if (std::fabs(in.left.phi - target) < 0.1f &&
-        std::fabs(in.right.phi - target) < 0.1f)
-    {
-        out.output.Tpl = positive ? -35.0f : 35.0f;
-        out.output.Tpr = positive ? 35.0f : -35.0f;
-    }
-}
-
-void controller::run_flatten(const inputs& in, step_out& out) noexcept
-{
-    const auto& left = in.left;
-    const auto& right = in.right;
-
-    out.recovered = true;
-    out.v_cmd_enabled = true;
-    if ((left.phi >= 0.7f && left.phi <= 1.4f) &&
-        (right.phi >= 0.7f && right.phi <= 1.4f))
-    {
-        reset_phi_control();
-        out.fsm_next = chassis_fsm::neutral;
-        return;
-    }
-
-    if (left.flat)
-    {
-        relax_left();
-    }
-    else
-    {
-        const auto& param = left.phi >= model::pi * 0.4f ? tuning.phi_flatten_fast
-                                                        : tuning.phi_flatten_slow;
-        l_phi_.pid.tune(param.kp, param.ki, param.kd);
-        out.output.Tpl = update_phi_control(
-            l_phi_, left, left_.total_phi(), model::pi,
-            left.phi >= model::pi * 0.4f ? 0.01f : 0.002f,
-            left.phi >= model::pi * 0.4f, out.debug.l_phi);
-    }
-
-    if (right.flat)
-    {
-        relax_right();
-    }
-    else
-    {
-        const auto& param = right.phi >= model::pi * 0.4f ? tuning.phi_flatten_fast
-                                                         : tuning.phi_flatten_slow;
-        r_phi_.pid.tune(param.kp, param.ki, param.kd);
-        out.output.Tpr = update_phi_control(
-            r_phi_, right, right_.total_phi(), model::pi,
-            right.phi >= model::pi * 0.4f ? 0.01f : 0.002f,
-            right.phi >= model::pi * 0.4f, out.debug.r_phi);
-    }
-
-    out.output.Twl = out.output.Twr = in.cmd.v > 0.0f ? 1.5f : 0.0f;
-    if (left.flat && right.flat)
-    {
-        odom_.reset();
-        reset_phi_control();
-        out.fsm_next = chassis_fsm::neutral;
-    }
-}
-
-void controller::run_neutral(const inputs& in, step_out& out) noexcept
-{
-    const auto& left = in.left;
-    const auto& right = in.right;
-
-    out.recovered = true;
-    out.v_cmd_enabled = true;
-    odom_.reset();
-    const auto& param = tuning.phi_neutral;
-    l_phi_.pid.tune(param.kp, param.ki, param.kd);
-    r_phi_.pid.tune(param.kp, param.ki, param.kd);
-    out.output.Fl = len_control(l_len_, left, left.len + (model::Lmin - left.len) * 0.6f,
-                                   out.debug.l_len) -
-                    left.spring.fs;
-    out.output.Fr = len_control(r_len_, right, right.len + (model::Lmin - right.len) * 0.6f,
-                                   out.debug.r_len) -
-                    right.spring.fs;
-    out.output.Tpl = update_phi_control(l_phi_, left, left_.total_phi(),
-                                0.5f * model::pi, 0.003f,
-                                left.phi < model::pi * 0.45f, out.debug.l_phi);
-    out.output.Tpr = update_phi_control(r_phi_, right, right_.total_phi(),
-                                0.5f * model::pi, 0.003f,
-                                right.phi < model::pi * 0.45f, out.debug.r_phi);
-    // Deterministic fix: the deadband explicitly commands zero wheel torque.
-    if (in.cmd.v > 0.005f)
-        out.output.Twl = out.output.Twr = 1.5f;
-    else if (in.cmd.v < -0.005f)
-        out.output.Twl = out.output.Twr = -1.5f;
-    else
-        out.output.Twl = out.output.Twr = 0.0f;
-
-    if (left.neutral && right.neutral)
-    {
-        reset_phi_control();
-        target_len_ = model::Lmin;
-        len_ramp_.set_value(left.len);
-        out.fsm_next = chassis_fsm::normal;
-    }
-}
-
 void controller::update_balance(const inputs& in, step_out& out,
                                 lqr_mode mode, float alpha_trim) noexcept
 {
@@ -312,153 +159,6 @@ void controller::update_leg_lqr(const inputs& in, step_out& out) noexcept
     leg_debug.active = true;
 }
 
-void controller::run_normal(const inputs& in, step_out& out) noexcept
-{
-    const auto& left = in.left;
-    const auto& right = in.right;
-    out.recovered = true;
-    const auto mode = (left.len + right.len) * 0.5f > model::Lswitch ? lqr_mode::high : lqr_mode::low;
-    update_balance(in, out, mode, tuning.alpha_trim);
-    update_leg_lqr(in, out);
-    ++settle_count_;
-    out.v_cmd_enabled = settle_count_ >= 500U;
-    if (out.v_cmd_enabled) len_ramp_.set_step(0.00027f);
-    if (in.cmd.spin && out.v_cmd_enabled)
-        out.fsm_next = chassis_fsm::spin; //! normal进airborne的离地
-    const bool left_airborne = l_contact_.off_timer.update(left.offground && left.dlen > 0.05);
-    const bool right_airborne = r_contact_.off_timer.update(right.offground && right.dlen > 0.05);
-    if (left_airborne || right_airborne)
-    {
-        out.v_cmd_enabled = false;
-        out.fsm_next = chassis_fsm::airborne;
-    }
-    // Legacy final assignment priority: fall protection overrides all earlier transitions.
-    if (left.alpha >= 0.8f || right.alpha >= 0.8f)
-    {
-        reset_phi_control();
-        out.fsm_next = chassis_fsm::relax;
-    }
-}
-
-void controller::run_spin(const inputs& in, step_out& out) noexcept
-{
-    out.recovered = true;
-    update_balance(in, out, lqr_mode::spin, tuning.spin_alpha_trim);
-    update_leg_pid(in, out);
-    out.v_cmd_enabled = true;
-    if (!in.cmd.spin && std::fabs(in.cmd.dyaw) < 0.002f)
-        out.fsm_next = chassis_fsm::normal;
-    if (in.left.alpha >= 0.8f || in.right.alpha >= 0.8f)
-    {
-        reset_phi_control();
-        out.fsm_next = chassis_fsm::relax;
-    }
-}
-
-/**
- * @brief 被动离地状态
- */
-void controller::run_airborne(const inputs& in, step_out& out) noexcept
-{
-    out.recovered = true;
-    if (!l_contact_.air_seen && in.left.offground)
-    {
-        l_contact_.air_seen = true;
-        l_contact_.dlen_peak = 0.0f;
-        l_contact_.touch_timer.reset();
-        l_contact_.touchdown = false;
-    }
-    if (!r_contact_.air_seen && in.right.offground)
-    {
-        r_contact_.air_seen = true;
-        r_contact_.dlen_peak = 0.0f;
-        r_contact_.touch_timer.reset();
-        r_contact_.touchdown = false;
-    }
-    if (!l_contact_.touchdown)
-    {
-        const bool finite = std::isfinite(in.left.len) && std::isfinite(in.left.dlen);
-        if (finite)
-        {
-            l_contact_.dlen_peak = std::max(l_contact_.dlen_peak, in.left.dlen);
-        }
-        const bool contact = finite && (in.left.dlen < model::touchdown_compress_rate ||
-            (in.left.len < model::Lmax - model::touchdown_len_margin &&
-             l_contact_.dlen_peak > model::touchdown_peak_rate &&
-             l_contact_.dlen_peak - in.left.dlen > model::touchdown_rate_drop));
-        if (l_contact_.touch_timer.update(contact))
-        {
-            l_contact_.touchdown = true;
-        }
-    }
-    if (!r_contact_.touchdown)
-    {
-        const bool finite = std::isfinite(in.right.len) && std::isfinite(in.right.dlen);
-        if (finite)
-        {
-            r_contact_.dlen_peak = std::max(r_contact_.dlen_peak, in.right.dlen);
-        }
-        const bool contact = finite && (in.right.dlen < model::touchdown_compress_rate ||
-            (in.right.len < model::Lmax - model::touchdown_len_margin &&
-             r_contact_.dlen_peak > model::touchdown_peak_rate &&
-             r_contact_.dlen_peak - in.right.dlen > model::touchdown_rate_drop));
-        if (r_contact_.touch_timer.update(contact))
-        {
-            r_contact_.touchdown = true;
-        }
-    }
-
-    out.ref.x = in.obs.x;
-    out.ref.v = in.obs.v;
-    out.ref.yaw = in.obs.yaw;
-    out.ref.dyaw = in.obs.dyaw;
-    out.ref.l_alpha = in.imu.pitch; //为了保持机身的垂直，不跟踪绝对的alpha = 0
-    out.ref.l_dalpha = 0.0f;
-    out.ref.r_alpha = in.imu.pitch;
-    out.ref.r_dalpha = 0.0f;
-    out.ref.pitch = in.obs.pitch;
-    out.ref.dpitch = in.obs.dpitch;
-    out.mode = lqr_mode::low;
-    const auto torque = lqr_.update(out.mode, in.left.len, in.right.len, in.obs, out.ref);
-    out.output.Tpl = torque[2]; //TODO:为了让空中给的摆角不要那么剧烈，降低了力矩，可以继续调
-    out.output.Tpr = torque[3]; //TODO:为了让空中给的摆角不要那么剧烈，降低了力矩，可以继续调
-    out.output.Twl = 0.0f;
-    out.output.Twr = 0.0f;
-
-    if (l_contact_.touchdown || r_contact_.touchdown)
-    {
-        update_leg_lqr(in, out);
-    }
-    if (!l_contact_.touchdown)
-    {
-        out.output.Fl = model::air_leg_force;
-    }
-    if (!r_contact_.touchdown)
-    {
-        out.output.Fr = model::air_leg_force;
-    }
-
-    if (in.left.alpha >= 0.8f || in.right.alpha >= 0.8f) //空中摆角太大失衡
-    {
-        reset_phi_control();
-        out.fsm_next = chassis_fsm::relax;
-    }
-    else if (l_contact_.touchdown && r_contact_.touchdown)
-    {
-        settle_count_ = 0;
-        target_len_ = model::Lmin;
-        len_ramp_.set_value(in.left.len);
-        len_ramp_.set_step(0.0009f);
-        out.fsm_next = chassis_fsm::normal;
-    }
-
-    auto& debug = out.debug;
-    std::copy(torque.begin(), torque.end(), debug.lqr_output);
-    const auto& raw = lqr_.raw_output();
-    std::copy(raw.begin(), raw.end(), debug.lqr_raw);
-    debug.lqr_active = true;
-}
-
 void controller::run_state(chassis_fsm executed, const inputs& in,
                            step_out& out) noexcept
 {
@@ -484,6 +184,9 @@ void controller::run_state(chassis_fsm executed, const inputs& in,
         break;
     case chassis_fsm::airborne:
         run_airborne(in, out);
+        break;
+    case chassis_fsm::spring_test:
+        out.output.Fl = -in.left.spring.fs;
         break;
     default:
         out.fsm_next = chassis_fsm::relax;
@@ -521,6 +224,10 @@ chassis_output controller::step(const ::imu::attitude::state& imu, const motor_f
         fsm_ = chassis_fsm::relax;
         roll_.clear();
         len_ramp_.set_step(0.0002f);
+    }
+    else if (model::spring_test)
+    {
+        fsm_ = chassis_fsm::spring_test;
     }
     apply_tuning();
     const chassis_fsm executed = fsm_;
