@@ -3,7 +3,7 @@
 #include "bsp_can.hpp"
 #include "bsp_dwt.hpp"
 #include "bsp_spi.hpp"
-#include "bsp_time.hpp"
+#include "main.h"
 #include "chassis.hpp"
 #include "command/cmd.hpp"
 #include "dm_manager.hpp"
@@ -178,7 +178,7 @@ void run_control(ULONG) noexcept
         const auto start_us = bsp::dwt::timeline_us();
         const auto period_us = static_cast<std::uint32_t>(start_us - last_start);
         last_start = start_us;
-        const std::uint32_t now = bsp::time::now_ms();
+        const std::uint32_t now = HAL_GetTick();
         (void)imu_sub.read(imu);
         (void)command_sub.read(frame);
         auto command = frame.chassis_cmd;
@@ -292,7 +292,7 @@ void run_command(ULONG) noexcept
     std::uint32_t last_poll = 0;
     for (;;)
     {
-        const std::uint32_t now = bsp::time::now_ms();
+        const std::uint32_t now = HAL_GetTick();
         (void)state_sub.read(state);
         if (pending)
         {

@@ -37,7 +37,7 @@ RECOVER 沿用旧代码的双腿翻身力矩，姿态恢复后进入 FLATTEN；�
 
 腿部法向力估算的速度差分使用标称 1 ms 周期；首次有效采样及几何失效后重新采样时不计算差分加速度。`cfg::offground_bound` 配置整车离地阈值，当前为 20 N；单腿阈值取其一半，即 10 N。进入 NORMAL 后才启用左右腿的力阈值离地判断，并在后续 AIRBORNE 中继续更新；RELAX、RECOVER、FLATTEN、NEUTRAL、SPIN 中标志清为 false。标志见 `dbg.chassis.left.offground` / `right.offground`，`dbg.chassis.state.offground` 汇总四种接触情况，禁用判断时为 `on_ground`，不表示已确认实际接地。法向力仍每周期估算，`state.normal_force` 保留左右腿法向力之和。几何失效时对应腿标志清为 false，法向力可能保留旧值，观测仍需结合腿部 `valid`、电机和 IMU 反馈有效性判断。
 
-只有 NORMAL 会确认离地事件：左右腿分别计数，任一腿同时满足低支撑力和伸长速度 `dlen > cfg::offground_extend_rate`（当前 0.05 m/s），并连续成立 `cfg::offground_confirm_count`（当前 40 个控制周期）后，下一周期进入 AIRBORNE。条件中断、离开 NORMAL 或反馈失效时重置；SPIN 不触发。离地和触地的连续确认共用 `libs/time/include/timer.hpp` 中的 `timing::timer`，应用调用 `update(condition)` 并在状态结束时 `reset()`。
+只有 NORMAL 会确认离地事件：左右腿分别计数，任一腿同时满足低支撑力和伸长速度 `dlen > cfg::offground_extend_rate`（当前 0.05 m/s），并连续成立 `cfg::offground_confirm_count`（当前 40 个控制周期）后，下一周期进入 AIRBORNE。条件中断、离开 NORMAL 或反馈失效时重置；SPIN 不触发。离地和触地的连续确认共用本目录 `timer.hpp` 中的 `timing::timer`，应用调用 `update(condition)` 并在状态结束时 `reset()`。
 
 AIRBORNE 中每条本次腾空的腿分别检测触地：A 为 `dlen < -0.05 m/s`；B 为 `len < Lmax - 0.03 m`，且本次伸展速度峰值大于 `0.10 m/s`、峰值与当前速度之差大于 `0.15 m/s`。A 或 B 连续成立 `cfg::touchdown_confirm_count`（当前 10 个控制周期）后确认该腿触地，条件中断或长度/速度非有限时重新计数。每次进入 AIRBORNE 清除峰值和计数，原本仍支撑且观测有效的腿直接初始化为已接触，避免单腿离地后等待另一腿重复产生触地动作；这条腿若随后出现原始离地标志，则清除初始接触并重新检测。确认在本次腾空内锁存，不额外识别确认后的二次弹跳；两腿均确认后才回 NORMAL。计数不是实际时间，控制周期为 1 ms 时才近似对应 40/10 ms。`cfg::Lmax` 当前也是命令腿长上限，触地判据中的伸展限位需与实际机构核对；飞坡模式尚未迁移。
 
@@ -51,7 +51,7 @@ DM8009P 使用显式的反馈速度比例 1.0，与旧工作树当前算法相�
 
 控制线程优先级为 6，命令线程优先级为 7；两者每轮结束休眠 1 tick，PS2 按 10 ms 发起轮询。控制线程仅使用 100 ms 内更新的命令，超时进入 RELAX。`dbg.runtime` 记录控制线程周期、执行时间和超过 1 ms 的次数，单位为微秒。
 
-IMU 和遥控命令的超时判断使用 `bsp::time::now_ms()`，与 IMU 服务发布的 HAL 毫秒时间戳同源，32 位时间差按无符号回绕计算。关节使能重试单独使用 ThreadX tick，超时和重发间隔根据 `TX_TIMER_TICKS_PER_SECOND` 换算。
+IMU 和遥控命令的超时判断直接使用 `HAL_GetTick()`，与 IMU 服务时间戳同源。关节使能重试使用 ThreadX tick。
 
 `dbg.runtime.motors_online`、`imu_valid` 和 `command_fresh` 分别反映电机反馈、IMU 和命令时效；左右腿几何有效性见 `dbg.chassis.left.valid` / `right.valid`。
 
