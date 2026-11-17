@@ -4,27 +4,8 @@
 
 #include <cstdint>
 
-
-
 namespace chassis
 {
-
-struct pid_param { volatile float kp, ki, kd; };
-
-struct robot_tuning_t
-{
-    // Enables automatic joint startup and control output.
-    volatile bool motor_output_enabled = true;
-    volatile float alpha_trim = 0.03f;
-    volatile float spin_alpha_trim = -0.03f; // Legacy SPIN equilibrium offset.
-    pid_param len_startup{5000.0f, 0.0f, -100.0f};
-    pid_param len_run{2000.0f, 0.0f, -400.0f};
-    pid_param roll{0.5f, 0.0f, 0.0f};
-    pid_param phi_recover{20.0f, 0.0f, 10.0f};
-    pid_param phi_flatten_fast{10.0f, 0.0f, 5.0f};
-    pid_param phi_flatten_slow{5.0f, 0.0f, 10.0f};
-    pid_param phi_neutral{30.0f, 0.0f, 10.0f};
-};
 
 // Snapshot only when this controller ran in the current cycle.
 // result includes the PID's own limit, before feedforward and spring compensation.
@@ -52,17 +33,17 @@ struct control_debug
     pid_debug l_phi{};
     pid_debug r_phi{};
     pid_debug roll{};
-    float lqr_raw[4]{}; // Before LQR limits: Twl, Twr, Tpl, Tpr (Nm).
+    float lqr_raw[4]{}; // Before LQR limits: l_tw, r_tw, l_tp, r_tp (Nm).
     float lqr_output[4]{}; // After LQR limits, before application overrides.
     bool lqr_active = false;
 };
 
 struct joint_torque_debug
 {
-    float l_joint1 = 0.0f;
-    float l_joint4 = 0.0f;
-    float r_joint1 = 0.0f;
-    float r_joint4 = 0.0f;
+    float l_tj1 = 0.0f;
+    float l_tj4 = 0.0f;
+    float r_tj1 = 0.0f;
+    float r_tj4 = 0.0f;
 };
 
 struct contact_debug
@@ -86,7 +67,8 @@ struct chassis_debug
     chassis_state state{};
     leg_state left{};
     leg_state right{};
-    chassis_output output{}; // Combined forces and final limited motor torques.
+    virtual_force force{}; // Active virtual-leg targets consumed by VMC.
+    motor_cmd motor{}; // Limited actuator targets, before app wheel-current conversion.
     control_debug control{};
     joint_torque_debug joint_raw{}; // Motor coordinates, before joint limits.
     lqr_state obs{};
@@ -129,6 +111,5 @@ struct robot_debug_t
 };
 
 inline robot_debug_t dbg{};
-inline robot_tuning_t tuning{};
 
 } // namespace chassis

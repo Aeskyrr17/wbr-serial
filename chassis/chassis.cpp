@@ -23,7 +23,10 @@ controller::controller()
 {
 }
 
-void controller::apply_tuning() noexcept
+/**
+ * @brief 双腿pid的tuning赋值。
+ */
+void controller::apply_pid_tuning() noexcept
 {
     const auto& len = (fsm_ == chassis_fsm::normal || fsm_ == chassis_fsm::spin) ? tuning.len_run : tuning.len_startup;
     l_len_.tune(len.kp, len.ki, len.kd);
@@ -31,7 +34,10 @@ void controller::apply_tuning() noexcept
     roll_.tune(tuning.roll.kp, tuning.roll.ki, tuning.roll.kd);
 }
 
-float controller::len_control(control::pid& pid, const leg_state& leg, float ref,
+/**
+ * @brief 腿长的pid控制
+ */
+float controller::len_pid_control(control::pid& pid, const leg_state& leg, float ref,
                               pid_debug& debug) noexcept
 {
     pid.ref = ref;
@@ -106,10 +112,10 @@ void controller::update_balance(const inputs& in, step_out& out,
     out.ref.dpitch = 0.0f;
     out.mode = mode;
     const auto torque = lqr_.update(out.mode, left.len, right.len, obs, out.ref);
-    out.output.Twl = torque[0];
-    out.output.Twr = torque[1];
-    out.output.Tpl = torque[2];
-    out.output.Tpr = torque[3];
+    out.motor.l_tw = torque[0];
+    out.motor.r_tw = torque[1];
+    out.force.l_tp = torque[2];
+    out.force.r_tp = torque[3];
 
     auto& debug = out.debug;
     std::copy(torque.begin(), torque.end(), debug.lqr_output);
@@ -126,12 +132,12 @@ void controller::update_leg_pid(const inputs& in, step_out& out) noexcept
     roll_.fdb = in.imu.roll;
     roll_.update(in.imu.gyro.x);
 
-    target_len_ = std::clamp(in.cmd.len, model::Lmin, model::Lmax);
+    target_len_ = std::clamp(in.cmd.len, cfg::Lmin, cfg::Lmax);
     const float cmd_len = len_ramp_.update(target_len_);
-    out.output.Fl = len_control(l_len_, left, cmd_len + roll_.result, out.debug.l_len) +
-                    model::gravity_feedforward - left.spring.fs;
-    out.output.Fr = len_control(r_len_, right, cmd_len - roll_.result, out.debug.r_len) +
-                    model::gravity_feedforward - right.spring.fs;
+    out.force.l_f = len_pid_control(l_len_, left, cmd_len + roll_.result, out.debug.l_len) +
+                    cfg::gravity_feedforward - left.spring.fs;
+    out.force.r_f = len_pid_control(r_len_, right, cmd_len - roll_.result, out.debug.r_len) +
+                    cfg::gravity_feedforward - right.spring.fs;
 
     out.debug.roll = {roll_.ref, roll_.fdb, roll_.result, true};
 }
@@ -140,7 +146,7 @@ void controller::update_leg_lqr(const inputs& in, step_out& out) noexcept
 {
     const auto& left = in.left;
     const auto& right = in.right;
-    target_len_ = std::clamp(in.cmd.len, model::Lmin, model::Lmax);
+    target_len_ = std::clamp(in.cmd.len, cfg::Lmin, cfg::Lmax);
     const float previous_len = len_ramp_.value();
     const float cmd_len = len_ramp_.update(target_len_);
     const float cmd_dlen = (cmd_len - previous_len) / leg_lqr_model::sample_time;
@@ -149,8 +155,8 @@ void controller::update_leg_lqr(const inputs& in, step_out& out) noexcept
     const auto support = leg_lqr_.update(leg_obs, leg_ref);
     // The model includes roll projection; remove only the sagittal leg projection here.
     // VMC consumes active axial force. Passive spring support is subtracted once.
-    out.output.Fl = support[0] / std::cos(left.alpha) - left.spring.fs;
-    out.output.Fr = support[1] / std::cos(right.alpha) - right.spring.fs;
+    out.force.l_f = support[0] / std::cos(left.alpha) - left.spring.fs;
+    out.force.r_f = support[1] / std::cos(right.alpha) - right.spring.fs;
 
     auto& leg_debug = out.debug.leg_lqr;
     std::copy(leg_obs.begin(), leg_obs.end(), leg_debug.obs);
@@ -186,7 +192,7 @@ void controller::run_state(chassis_fsm executed, const inputs& in,
         run_airborne(in, out);
         break;
     case chassis_fsm::spring_test:
-        out.output.Fl = -in.left.spring.fs;
+        out.force.l_f = -in.left.spring.fs;
         break;
     default:
         out.fsm_next = chassis_fsm::relax;
@@ -194,9 +200,36 @@ void controller::run_state(chassis_fsm executed, const inputs& in,
     }
 }
 
-chassis_output controller::step(const ::imu::attitude::state& imu, const motor_fdb& fdb,
-                                const chassis_cmd& cmd, std::uint32_t now,
-                                chassis_state& published) noexcept
+offground_state controller::is_offground(const leg_state& left, const leg_state& right) const noexcept
+{
+    if (left.offground && right.offground)
+    {
+        return offground_state::both_off_ground;
+    }
+    if (left.offground)
+    {
+        return offground_state::left_off_ground;
+    }
+    if (right.offground)
+    {
+        return offground_state::right_off_ground;
+    }
+    return offground_state::on_ground;
+}
+
+/**
+ * @brief
+ *
+ * @param imu
+ * @param fdb
+ * @param cmd
+ * @param now
+ * @param output 电机输出
+ * @param state  底盘状态
+ */
+void controller::step(const ::imu::attitude::state& imu, const motor_fdb& fdb,
+                      const chassis_cmd& cmd, std::uint32_t now,
+                      motor_cmd& output, chassis_state& state) noexcept
 {
     const float wheel_velocity = (-fdb.l_w.velocity + fdb.r_w.velocity) * 0.5f * model::wheel_radius;
     odom_.update(imu, wheel_velocity);
@@ -219,22 +252,22 @@ chassis_output controller::step(const ::imu::attitude::state& imu, const motor_f
     const bool imu_valid = imu.online && imu.sequence != 0U && now - imu.received_ms <= 100U;
     const bool valid = imu_valid && fdb.motors_online && left_valid && right_valid;
     const inputs in{imu, fdb, cmd, left, right, obs, valid};
-    if (!valid || !cmd.move)
+    if (!valid || !cmd.move) //imu或电机反馈异常，或者没有移动指令，relax
     {
         fsm_ = chassis_fsm::relax;
         roll_.clear();
         len_ramp_.set_step(0.0002f);
     }
-    else if (model::spring_test)
+    else if (cfg::spring_test)
     {
         fsm_ = chassis_fsm::spring_test;
     }
-    apply_tuning();
+    apply_pid_tuning(); // pid腿长的tuning
+
     const chassis_fsm executed = fsm_;
-    const bool detect_offground = executed == chassis_fsm::normal ||
-                                  executed == chassis_fsm::airborne;
-    left_.detect_offground(detect_offground);
-    right_.detect_offground(detect_offground);
+    //TODO：检测各种状态，后续如果多起来考虑封装
+    left_.detect_offground(executed == chassis_fsm::normal || executed == chassis_fsm::airborne);
+    right_.detect_offground(executed == chassis_fsm::normal || executed == chassis_fsm::airborne);
     if (executed != chassis_fsm::airborne)
     {
         l_contact_.dlen_peak = 0.0f;
@@ -246,6 +279,7 @@ chassis_output controller::step(const ::imu::attitude::state& imu, const motor_f
         l_contact_.touchdown = false;
         r_contact_.touchdown = false;
     }
+
     step_out out{};
     out.fsm_next = fsm_;
     run_state(executed, in, out);
@@ -265,35 +299,34 @@ chassis_output controller::step(const ::imu::attitude::state& imu, const motor_f
                                std::isfinite(right.len) && std::isfinite(right.dlen);
     }
 
-    auto& motor_output = out.output;
+    output = out.motor;
     joint_torque_debug joint_raw{};
     if (executed != chassis_fsm::relax)
     {
-        const auto lt = left_.joint_torque(out.output.Fl, out.output.Tpl);
-        const auto rt = right_.joint_torque(out.output.Fr, out.output.Tpr);
+        const auto lt = left_.joint_torque(out.force.l_f, out.force.l_tp);
+        const auto rt = right_.joint_torque(out.force.r_f, out.force.r_tp);
         joint_raw = {lt[0], lt[1], rt[0], rt[1]};
-        motor_output.l_joint1 = std::clamp(lt[0], -model::max_joint_torque, model::max_joint_torque);
-        motor_output.l_joint4 = std::clamp(lt[1], -model::max_joint_torque, model::max_joint_torque);
-        motor_output.r_joint1 = std::clamp(rt[0], -model::max_joint_torque, model::max_joint_torque);
-        motor_output.r_joint4 = std::clamp(rt[1], -model::max_joint_torque, model::max_joint_torque);
+        output.l_tj1 = std::clamp(lt[0], -cfg::max_joint_torque, cfg::max_joint_torque);
+        output.l_tj4 = std::clamp(lt[1], -cfg::max_joint_torque, cfg::max_joint_torque);
+        output.r_tj1 = std::clamp(rt[0], -cfg::max_joint_torque, cfg::max_joint_torque);
+        output.r_tj4 = std::clamp(rt[1], -cfg::max_joint_torque, cfg::max_joint_torque);
     }
-    motor_output.Twl = std::clamp(motor_output.Twl, -model::max_wheel_torque, model::max_wheel_torque);
-    motor_output.Twr = std::clamp(motor_output.Twr, -model::max_wheel_torque, model::max_wheel_torque);
+    output.l_tw = std::clamp(output.l_tw, -cfg::max_wheel_torque, cfg::max_wheel_torque);
+    output.r_tw = std::clamp(output.r_tw, -cfg::max_wheel_torque, cfg::max_wheel_torque);
     fsm_ = out.fsm_next;
 
-    published.x = odom_.x();
-    published.v = odom_.v();
-    published.len = 0.5f * (left.len + right.len);
-    published.lalpha = left.alpha;
-    published.ralpha = right.alpha;
-    published.pitch = in.imu.pitch;
-    published.yaw = in.imu.total_yaw;
-    published.v_cmd_enabled = out.v_cmd_enabled;
-    published.recovered = out.recovered;
-    published.fsm_executed = executed;
-    published.fsm_next = out.fsm_next;
-    published.normal_force = left.normal_force + right.normal_force;
-    published.offground = is_offground(left, right);
+    state.x = odom_.x();
+    state.v = odom_.v();
+    state.len = 0.5f * (left.len + right.len);
+    state.lalpha = left.alpha;
+    state.ralpha = right.alpha;
+    state.pitch = in.imu.pitch;
+    state.yaw = in.imu.total_yaw;
+    state.v_cmd_enabled = out.v_cmd_enabled;
+    state.fsm_executed = executed;
+    state.fsm_next = out.fsm_next;
+    state.normal_force = left.normal_force + right.normal_force;
+    state.offground = is_offground(left, right);
 
     ++dbg.chassis.sample_seq;
     dbg.chassis.sample_tick = now;
@@ -304,11 +337,12 @@ chassis_output controller::step(const ::imu::attitude::state& imu, const motor_f
                              l_contact_.dlen_peak, l_contact_.air_seen, l_contact_.touchdown};
     dbg.chassis.r_contact = {r_contact_.off_timer.count(), r_contact_.touch_timer.count(),
                              r_contact_.dlen_peak, r_contact_.air_seen, r_contact_.touchdown};
-    dbg.chassis.state = published;
+    dbg.chassis.state = state;
     dbg.chassis.left = left;
     dbg.chassis.right = right;
     ++dbg.chassis.sample_seq;
-    dbg.chassis.output = motor_output;
+    dbg.chassis.force = out.force;
+    dbg.chassis.motor = output;
     dbg.chassis.joint_raw = joint_raw;
     dbg.chassis.control = out.debug;
     dbg.chassis.obs = obs;
@@ -316,7 +350,6 @@ chassis_output controller::step(const ::imu::attitude::state& imu, const motor_f
     dbg.chassis.roll = in.imu.roll;
     dbg.chassis.droll = in.imu.gyro.x;
     dbg.chassis.lqr_mode = static_cast<std::uint8_t>(out.mode);
-    return motor_output;
 }
 
 } // namespace chassis

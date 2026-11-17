@@ -1,6 +1,7 @@
 #pragma once
 
 #include "attitude.hpp"
+#include "cfg.hpp"
 
 #include <array>
 #include <cmath>
@@ -18,7 +19,7 @@ public:
     [[nodiscard]] float az() const noexcept { return az_; }
 
 private:
-    inline static constexpr float dt = 0.001f;
+    inline static constexpr float dt = cfg::control_dt;
     inline static constexpr float F[9] = {1.0f, dt, 0.5e-6f, 0.0f, 1.0f, dt, 0.0f, 0.0f, 1.0f};
     // Compatibility baseline: Q[0,0] intentionally preserves legacy dt^3/20.
     inline static constexpr float Q[9] = {2.5e-10f, 6.25e-13f, 8.333333e-10f,

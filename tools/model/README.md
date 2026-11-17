@@ -29,7 +29,7 @@ x, v, yaw, dyaw, alpha_l, dalpha_l, alpha_r, dalpha_r, pitch, dpitch
 Twl, Twr, Tpl, Tpr
 ```
 
-分别对应左右轮力矩、左右等效髋主动力矩。low/high 是正常运动使用的两组权重，spin 用于自旋。
+Python 工具和生成模型内部沿用上述符号，分别对应左右轮力矩、左右等效髋主动力矩；当前固件字段依次为 `l_tw, r_tw, l_tp, r_tp`。low/high 是正常运动使用的两组权重，spin 用于自旋。
 
 头文件中每组数组为 `[40][6]`：40 行按 4 个输出 × 10 个状态行优先排列；6 列对应 `[1, L, R, L², LR, R²]`，L/R 为左右腿长（米）。保存的增益已包含负反馈符号，运行时直接乘 `(obs - ref)`，不要再次取负。
 
@@ -55,7 +55,7 @@ python tools/model/generate.py --mode legacy
 [双腿建模](https://github.com/CosmosMount/wbr_modeling/blob/main/06_newton_euler_dual.md)：
 `leg_force` 对应 F_L（N），`hip_torque` 对应等效髋主动力矩 τ_l（N·m）。
 VMC 的广义载荷 `[F_L, τ_l]` 对应坐标 `[len, phi]`，其中 τ_l = len × 切向力。
-保留旧缩写 `Tpl/Tpr`，分别对应 τ_{l,l}/τ_{l,r}；`Twl/Twr` 对应 τ_{w,l}/τ_{w,r}。
+模型符号 `Tpl/Tpr` 分别对应 τ_{l,l}/τ_{l,r}，当前固件字段为 `force.l_tp/r_tp`；`Twl/Twr` 对应 τ_{w,l}/τ_{w,r}，固件字段为 `motor.l_tw/r_tw`。固件的 `virtual_force` 保存转换前的虚拟力与力矩，`motor_cmd` 保存 VMC 转换和限幅后的电机力矩目标；关节字段为 `l_tj1/l_tj4/r_tj1/r_tj4`。
 髋力矩作用于腿，并对机身产生反作用力矩，不能简单命名成机身 pitch 力矩。
 代码 `phi` 是 VMC 腿角；动力学章节的 φ 表示 yaw，两者语境不同，不据此机械重命名。
 探针反馈路径为 `dbg.chassis.left/right.leg_force` 和 `.hip_torque`。

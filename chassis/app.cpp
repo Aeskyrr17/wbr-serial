@@ -3,6 +3,7 @@
 #include "bsp_can.hpp"
 #include "bsp_dwt.hpp"
 #include "bsp_spi.hpp"
+#include "bsp_time.hpp"
 #include "chassis.hpp"
 #include "command/cmd.hpp"
 #include "dm_manager.hpp"
@@ -10,8 +11,8 @@
 #include "peripherals.hpp"
 #include "ps2.hpp"
 #include "robot_debug.hpp"
-#include "stm32h7xx_hal.h"
 #include "tx_api.h"
+#include "tuning.hpp"
 
 #include <cstdint>
 
@@ -29,8 +30,8 @@ msg::topic<chassis_state> state_topic{};
 msg::subscriber<cmd_frame> command_sub{};
 msg::subscriber<chassis_state> state_sub{};
 motor::dm::config_t joint_params{
-    model::joint_position_limit, model::joint_velocity_limit, model::joint_torque_limit,
-    model::joint_velocity_scale, model::joint_wrap_position};
+    cfg::joint_position_limit, cfg::joint_velocity_limit, cfg::joint_torque_limit,
+    cfg::joint_velocity_scale, cfg::joint_wrap_position};
 motor::dm::dm8009p l_joint1{joint_params, cfg::joint_mode};
 motor::dm::dm8009p l_joint4{joint_params, cfg::joint_mode};
 motor::dm::dm8009p r_joint1{joint_params, cfg::joint_mode};
@@ -85,6 +86,7 @@ bool stop_motors() noexcept
     l_wheel.cmd.current = 0.0f;
     r_wheel.cmd.current = 0.0f;
     wheels.update();
+    wheels.transmit(static_cast<std::uint32_t>(bsp::dwt::timeline_us()));
     const std::uint8_t zero[8]{};
     const bool wheels_stopped =
         bsp::can::transmit(cfg::wheel_bus.instance, 0x200, zero, 8) == pnxtypes::status::ok;
@@ -101,16 +103,16 @@ bool joints_ready() noexcept
 
 bool enable_joint(motor::dm::motor& joint, std::uint8_t bit, std::uint8_t& confirmed) noexcept
 {
-    constexpr std::uint32_t timeout_ms = 1000U;
-    constexpr std::uint32_t retry_ms = 10U;
+    constexpr ULONG timeout_ticks = TX_TIMER_TICKS_PER_SECOND;
+    constexpr ULONG retry_ticks = (TX_TIMER_TICKS_PER_SECOND + 99U) / 100U;
     (void)joints.update_feedback(joint); // Discard the previous cached feedback.
-    const auto started = HAL_GetTick();
-    auto last_send = started - retry_ms;
+    const ULONG started = tx_time_get();
+    ULONG last_send = started - retry_ticks;
     bool sent = false;
-    while (tuning.motor_output_enabled && HAL_GetTick() - started < timeout_ms)
+    while (tuning.motor_output_enabled && tx_time_get() - started < timeout_ticks)
     {
-        const auto now = HAL_GetTick();
-        if (now - last_send >= retry_ms)
+        const ULONG now = tx_time_get();
+        if (now - last_send >= retry_ticks)
         {
             last_send = now;
             sent = joints.special(joint, motor::dm::special_command::enable) || sent;
@@ -176,7 +178,7 @@ void run_control(ULONG) noexcept
         const auto start_us = bsp::dwt::timeline_us();
         const auto period_us = static_cast<std::uint32_t>(start_us - last_start);
         last_start = start_us;
-        const std::uint32_t now = HAL_GetTick();
+        const std::uint32_t now = bsp::time::now_ms();
         (void)imu_sub.read(imu);
         (void)command_sub.read(frame);
         auto command = frame.chassis_cmd;
@@ -217,19 +219,20 @@ void run_control(ULONG) noexcept
                                now - imu_input.received_ms <= 100U;
         // Match the previous AHRS x-offset compensation at the application boundary.
         imu_input.accel.x += 0.2f * imu.gyro.z * imu.gyro.z;
-        const auto output = control.step(imu_input, fdb, command, now, state);
+        motor_cmd output{};
+        control.step(imu_input, fdb, command, now, output, state);
         const bool send_output = enabled;
         if (send_output)
         {
             l_joint1.motor_mode = l_joint4.motor_mode = motor::mode::mit;
             r_joint1.motor_mode = r_joint4.motor_mode = motor::mode::mit;
-            l_joint1.cmd.torque = output.l_joint1;
-            l_joint4.cmd.torque = output.l_joint4;
-            r_joint1.cmd.torque = output.r_joint1;
-            r_joint4.cmd.torque = output.r_joint4;
+            l_joint1.cmd.torque = output.l_tj1;
+            l_joint4.cmd.torque = output.l_tj4;
+            r_joint1.cmd.torque = output.r_tj1;
+            r_joint4.cmd.torque = output.r_tj4;
             l_wheel.motor_mode = r_wheel.motor_mode = motor::mode::current;
-            l_wheel.cmd.current = static_cast<std::int16_t>(-output.Twl * model::wheel_current_scale);
-            r_wheel.cmd.current = static_cast<std::int16_t>(output.Twr * model::wheel_current_scale);
+            l_wheel.cmd.current = static_cast<std::int16_t>(-output.l_tw * cfg::wheel_current_scale);
+            r_wheel.cmd.current = static_cast<std::int16_t>(output.r_tw * cfg::wheel_current_scale);
         }
         joints.update();
         wheels.update();
@@ -289,7 +292,7 @@ void run_command(ULONG) noexcept
     std::uint32_t last_poll = 0;
     for (;;)
     {
-        const std::uint32_t now = HAL_GetTick();
+        const std::uint32_t now = bsp::time::now_ms();
         (void)state_sub.read(state);
         if (pending)
         {

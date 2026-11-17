@@ -6,7 +6,6 @@ namespace chassis
 {
 void controller::run_spin(const inputs& in, step_out& out) noexcept
 {
-    out.recovered = true;
     update_balance(in, out, lqr_mode::spin, tuning.spin_alpha_trim);
     update_leg_pid(in, out);
     out.v_cmd_enabled = true;

@@ -57,11 +57,11 @@ alpha 是各腿在前后方向的世界倾角，不是 roll。H/dH 的几何关�
 
 ```text
 support[i] = Mg/2 + K[i] * (obs-ref)
-Fl = support[0]/cos(left.alpha) - left.fs
-Fr = support[1]/cos(right.alpha) - right.fs
+force.l_f = support[0]/cos(left.alpha) - left.spring.fs
+force.r_f = support[1]/cos(right.alpha) - right.spring.fs
 ```
 
-F_N 是模型中的总支撑力，不是反馈 `normal_force`：模型的 cos(roll) 单独处理横滚投影；送入 VMC 前除以各腿的 cos(alpha)，换回轴向力，再扣除弹簧支撑。重力只加一次，不再叠加旧 `gravity_feedforward`。这个映射适用于站立小倾角，现有电机力矩限幅保留；未新增控制开关或观测器限制。
+上述 `force.l_f/r_f` 是当前固件 `virtual_force` 的转换前虚拟腿力字段。Python 模型内部仍使用 `F_N_left/F_N_right` 表示总支撑力，不是反馈 `normal_force`：模型的 cos(roll) 单独处理横滚投影；送入 VMC 前除以各腿的 cos(alpha)，换回轴向力，再扣除弹簧支撑。重力只加一次，不再叠加旧 `gravity_feedforward`。VMC 转换并限幅后，四关节目标写入 `motor_cmd` 的 `l_tj1/l_tj4/r_tj1/r_tj4`（Nm）。这个映射适用于站立小倾角，现有电机力矩限幅保留；未新增控制开关或观测器限制。
 
 观察 `dbg.chassis.control.leg_lqr.obs/ref` 和 `support_force`。 RELAX 也每周期更新这些值：参考由当前腿长命令换算、参考速度取0，支撑力仅为计算预览，不写入任何执行器输出；`active=false`。`active` 只标记本周期是否运行新控制器，不是使能开关；NORMAL 下原 l_len/r_len/roll PID 快照应为 inactive。
 

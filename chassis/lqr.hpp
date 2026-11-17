@@ -1,7 +1,7 @@
 #pragma once
 
 #include "robot_types.hpp"
-#include "model/chassis_model.hpp"
+#include "cfg.hpp"
 #include "model/lqr_coeffs.hpp"
 
 
@@ -29,8 +29,8 @@ private:
 inline std::array<float, 4> lqr::update(lqr_mode mode, float llen, float rlen,
                                  const lqr_state& obs, const lqr_state& ref) noexcept
 {
-    llen = std::round(std::clamp(llen, model::Lmin, model::Lmax) * 100.0f) / 100.0f;
-    rlen = std::round(std::clamp(rlen, model::Lmin, model::Lmax) * 100.0f) / 100.0f;
+    llen = std::round(std::clamp(llen, cfg::Lmin, cfg::Lmax) * 100.0f) / 100.0f;
+    rlen = std::round(std::clamp(rlen, cfg::Lmin, cfg::Lmax) * 100.0f) / 100.0f;
     const float (*coeff)[6] = LQRKLowcoeffs;
     if (mode == lqr_mode::high) coeff = LQRKHighcoeffs;
     else if (mode == lqr_mode::spin) coeff = LQRKSpincoeffs;
@@ -52,10 +52,10 @@ inline std::array<float, 4> lqr::update(lqr_mode mode, float llen, float rlen,
             output[row] += gain_[row * obs_array.size() + column] *
                            (obs_array[column] - ref_array[column]);
     raw_output_ = output;
-    output[0] = std::clamp(output[0], -model::max_wheel_torque, model::max_wheel_torque);
-    output[1] = std::clamp(output[1], -model::max_wheel_torque, model::max_wheel_torque);
-    output[2] = std::clamp(output[2], -model::max_joint_torque, model::max_joint_torque);
-    output[3] = std::clamp(output[3], -model::max_joint_torque, model::max_joint_torque);
+    output[0] = std::clamp(output[0], -cfg::max_wheel_torque, cfg::max_wheel_torque);
+    output[1] = std::clamp(output[1], -cfg::max_wheel_torque, cfg::max_wheel_torque);
+    output[2] = std::clamp(output[2], -cfg::max_joint_torque, cfg::max_joint_torque);
+    output[3] = std::clamp(output[3], -cfg::max_joint_torque, cfg::max_joint_torque);
     return output;
 }
 

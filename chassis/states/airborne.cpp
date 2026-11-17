@@ -10,7 +10,6 @@ namespace chassis
  */
 void controller::run_airborne(const inputs& in, step_out& out) noexcept
 {
-    out.recovered = true;
     if (!l_contact_.air_seen && in.left.offground)
     {
         l_contact_.air_seen = true;
@@ -32,10 +31,10 @@ void controller::run_airborne(const inputs& in, step_out& out) noexcept
         {
             l_contact_.dlen_peak = std::max(l_contact_.dlen_peak, in.left.dlen);
         }
-        const bool contact = finite && (in.left.dlen < model::touchdown_compress_rate ||
-            (in.left.len < model::Lmax - model::touchdown_len_margin &&
-             l_contact_.dlen_peak > model::touchdown_peak_rate &&
-             l_contact_.dlen_peak - in.left.dlen > model::touchdown_rate_drop));
+        const bool contact = finite && (in.left.dlen < cfg::touchdown_compress_rate ||
+            (in.left.len < cfg::Lmax - cfg::touchdown_len_margin &&
+             l_contact_.dlen_peak > cfg::touchdown_peak_rate &&
+             l_contact_.dlen_peak - in.left.dlen > cfg::touchdown_rate_drop));
         if (l_contact_.touch_timer.update(contact))
         {
             l_contact_.touchdown = true;
@@ -48,10 +47,10 @@ void controller::run_airborne(const inputs& in, step_out& out) noexcept
         {
             r_contact_.dlen_peak = std::max(r_contact_.dlen_peak, in.right.dlen);
         }
-        const bool contact = finite && (in.right.dlen < model::touchdown_compress_rate ||
-            (in.right.len < model::Lmax - model::touchdown_len_margin &&
-             r_contact_.dlen_peak > model::touchdown_peak_rate &&
-             r_contact_.dlen_peak - in.right.dlen > model::touchdown_rate_drop));
+        const bool contact = finite && (in.right.dlen < cfg::touchdown_compress_rate ||
+            (in.right.len < cfg::Lmax - cfg::touchdown_len_margin &&
+             r_contact_.dlen_peak > cfg::touchdown_peak_rate &&
+             r_contact_.dlen_peak - in.right.dlen > cfg::touchdown_rate_drop));
         if (r_contact_.touch_timer.update(contact))
         {
             r_contact_.touchdown = true;
@@ -70,10 +69,10 @@ void controller::run_airborne(const inputs& in, step_out& out) noexcept
     out.ref.dpitch = in.obs.dpitch;
     out.mode = lqr_mode::low;
     const auto torque = lqr_.update(out.mode, in.left.len, in.right.len, in.obs, out.ref);
-    out.output.Tpl = torque[2]; //TODO:为了让空中给的摆角不要那么剧烈，降低了力矩，可以继续调
-    out.output.Tpr = torque[3]; //TODO:为了让空中给的摆角不要那么剧烈，降低了力矩，可以继续调
-    out.output.Twl = 0.0f;
-    out.output.Twr = 0.0f;
+    out.force.l_tp = torque[2]; //TODO:为了让空中给的摆角不要那么剧烈，降低了力矩，可以继续调
+    out.force.r_tp = torque[3]; //TODO:为了让空中给的摆角不要那么剧烈，降低了力矩，可以继续调
+    out.motor.l_tw = 0.0f;
+    out.motor.r_tw = 0.0f;
 
     if (l_contact_.touchdown || r_contact_.touchdown)
     {
@@ -81,11 +80,11 @@ void controller::run_airborne(const inputs& in, step_out& out) noexcept
     }
     if (!l_contact_.touchdown)
     {
-        out.output.Fl = model::air_leg_force;
+        out.force.l_f = cfg::air_leg_force;
     }
     if (!r_contact_.touchdown)
     {
-        out.output.Fr = model::air_leg_force;
+        out.force.r_f = cfg::air_leg_force;
     }
 
     if (in.left.alpha >= 0.8f || in.right.alpha >= 0.8f) //空中摆角太大失衡
@@ -96,7 +95,7 @@ void controller::run_airborne(const inputs& in, step_out& out) noexcept
     else if (l_contact_.touchdown && r_contact_.touchdown)
     {
         settle_count_ = 0;
-        target_len_ = model::Lmin;
+        target_len_ = cfg::Lmin;
         len_ramp_.set_value(in.left.len);
         len_ramp_.set_step(0.0009f);
         out.fsm_next = chassis_fsm::normal;

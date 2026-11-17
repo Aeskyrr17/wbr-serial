@@ -1,5 +1,6 @@
 #include "pendulum.hpp"
 
+#include "cfg.hpp"
 #include "model/chassis_model.hpp"
 
 #include <cmath>
@@ -69,10 +70,10 @@ bool pendulum::update(const ::motor::feedback_t& joint1, const ::motor::feedback
     const float ca = std::cos(state_.alpha), sa = std::sin(state_.alpha);
     const float vertical_force = (state_.leg_force + state_.spring.fs) * ca;
     const float ddlen = velocity_initialized_
-                            ? (state_.dlen - prev_dlen_) / model::control_dt
+                            ? (state_.dlen - prev_dlen_) / cfg::control_dt
                             : 0.0f;
     const float ddalpha = velocity_initialized_
-                              ? (state_.dalpha - prev_dalpha_) / model::control_dt
+                              ? (state_.dalpha - prev_dalpha_) / cfg::control_dt
                               : 0.0f;
     const float zw = (az - model::gravity) - ddlen * ca +
                      2.0f * state_.dlen * state_.dalpha * sa +
@@ -91,7 +92,7 @@ bool pendulum::update(const ::motor::feedback_t& joint1, const ::motor::feedback
 void pendulum::detect_offground(bool enabled) noexcept
 {
     state_.offground = enabled && state_.valid && std::isfinite(state_.normal_force) &&
-                       state_.normal_force < model::offground_single_bound;
+                       state_.normal_force < cfg::offground_single_bound;
 }
 
 std::array<float, 2> pendulum::joint_torque(float leg_force, float hip_torque) const noexcept

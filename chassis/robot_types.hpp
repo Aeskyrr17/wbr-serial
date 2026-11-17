@@ -1,5 +1,6 @@
 #pragma once
 
+#include "cfg.hpp"
 #include "model/vmc.hpp"
 
 #include "motor.hpp"
@@ -48,7 +49,7 @@ struct chassis_cmd
 {
     float x = 0.0f;
     float v = 0.0f;
-    float len = 0.16f;
+    float len = cfg::Lmin;
     float yaw = 0.0f;
     float dyaw = 0.0f;
     bool move = false;
@@ -80,11 +81,7 @@ struct motor_fdb
 // alpha = phi - pi/2 + body pitch
 // fs is passive spring support; leg_force/hip_torque come from joint feedback.
 // normal_force is the legacy estimated wheel-ground support, not a force sensor.
-struct leg_phi_state
-{
-    bool flat = false;
-    bool neutral = false;
-};
+
 struct leg_state
 {
     spring_result spring{};
@@ -106,23 +103,31 @@ struct leg_state
     bool offground = false; // NORMAL/AIRBORNE 中按力阈值判断，其余状态为 false。
     bool flat = false;
     bool neutral = false;
-    leg_phi_state phi_state{};
+    // leg_phi_state phi_state{};
+    struct leg_phi_state
+    {
+        bool flat = false;
+        bool neutral = false;
+    }phi_state;
 };
 
-// Tw: wheel torque; Tp: equivalent hip actuator torque (Nm, tau_l); F: axial leg force (N).
-// l/r_joint*: motor-coordinate torque after VMC and right-side mirroring.
-struct chassis_output
+struct virtual_force
 {
-    float Twl = 0.0f;
-    float Twr = 0.0f;
-    float Tpl = 0.0f;
-    float Tpr = 0.0f;
-    float Fl = 0.0f;
-    float Fr = 0.0f;
-    float l_joint1 = 0.0f;
-    float l_joint4 = 0.0f;
-    float r_joint1 = 0.0f;
-    float r_joint4 = 0.0f;
+    float l_tp = 0.0f;
+    float r_tp = 0.0f;
+    float l_f = 0.0f;
+    float r_f = 0.0f;
+};
+
+
+struct motor_cmd
+{
+    float l_tw = 0.0f;
+    float r_tw = 0.0f;
+    float l_tj1 = 0.0f;
+    float l_tj4 = 0.0f;
+    float r_tj1 = 0.0f;
+    float r_tj4 = 0.0f;
 };
 
 enum class offground_state : std::uint8_t
@@ -144,7 +149,6 @@ struct chassis_state
     float yaw = 0.0f;
     // Legacy normal: allows command.v, including wheel assistance in FLATTEN/NEUTRAL.
     bool v_cmd_enabled = false;
-    bool recovered = false;
     chassis_fsm fsm_executed = chassis_fsm::relax; // Mode used for this output.
     chassis_fsm fsm_next = chassis_fsm::relax; // Mode selected for the next step.
     float normal_force = 0.0f;

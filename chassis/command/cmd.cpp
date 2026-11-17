@@ -1,5 +1,5 @@
 #include "cmd.hpp"
-#include "model/chassis_model.hpp"
+#include "cfg.hpp"
 #include "robot_debug.hpp"
 
 #include <algorithm>
@@ -69,10 +69,10 @@ cmd_frame mapper::step(const motion_req& request, const chassis_state& state,
     cmd.spin = cmd.move && ready && state.v_cmd_enabled && request.spin;
     const bool spin_active = cmd.move && (cmd.spin || state.fsm_executed == chassis_fsm::spin);
     if (!cmd.move)
-        len_ref_ = chassis::model::Lmin;
+        len_ref_ = chassis::cfg::Lmin;
     else if (ready)
         len_ref_ += request.len_rate * mapping::dt;
-    len_ref_ = std::clamp(len_ref_, chassis::model::Lmin, chassis::model::Lmax);
+    len_ref_ = std::clamp(len_ref_, chassis::cfg::Lmin, chassis::cfg::Lmax);
     cmd.len = len_ref_;
 
     if (!cmd.move)
