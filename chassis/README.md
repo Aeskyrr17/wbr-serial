@@ -57,6 +57,8 @@ IMU 和遥控命令的超时判断直接使用 `HAL_GetTick()`，与 IMU 服务�
 
 `dbg.chassis.state` 是底盘状态，`left` / `right` 是腿部观测，`control` 是控制器快照。`dbg.chassis.force` 记录 VMC 输入，`dbg.chassis.motor` 记录限幅后的电机目标，`joint_raw` 保留限幅前的四关节力矩。轮目标仍为 Nm，尚未经过应用层的方向和电流换算；这些目标不表示命令已发送。整车法向力见 `state.normal_force`，左右腿角 PID 目标见 `control.l_phi.ref` / `control.r_phi.ref`；弹簧标称力配置见 `model::spring_force`。
 
+PID 快照在状态或公共控制函数末尾集中采集；`active` 表示该 PID 本轮实际运行过。
+
 整机 LQR 的 `obs` 和 `ref` 使用具名状态成员，调试器中也可直接查看，例如 `dbg.chassis.ref.pitch`。矩阵运算按 `x`、`v`、`yaw`、`dyaw`、`l_alpha`、`l_dalpha`、`r_alpha`、`r_dalpha`、`pitch`、`dpitch` 的顺序转换。
 
 PS2 十字键上、下长按控制腿长；可通过 `dbg.cmd.len_rate` 查看输入，`dbg.cmd.cmd.len` 查看目标。控制线程实际收到的目标、限幅目标及斜坡值分别为 `dbg.chassis.len_cmd`、`len_target`、`len_ref`。只有运动启用且状态为 NORMAL 或 SPIN 时目标才会变化。

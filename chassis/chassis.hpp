@@ -70,11 +70,10 @@ private:
         bool touchdown = false;//< 是否触地
     };
 
-    float len_pid_control(control::pid& pid, const leg_state& leg, float ref,
-                      pid_debug& debug) noexcept;
+    float len_pid_control(control::pid& pid, const leg_state& leg, float ref) noexcept;
     float update_phi_control(phi_pid_control& ctrl, const leg_state& leg,
                              float total_phi, float target, float step,
-                             bool positive, pid_debug& debug) noexcept;
+                             bool positive) noexcept;
     void apply_pid_tuning() noexcept;
     void reset_phi_control() noexcept;
     void relax_left() noexcept;

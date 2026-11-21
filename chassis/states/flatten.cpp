@@ -28,7 +28,7 @@ void controller::run_flatten(const inputs& in, step_out& out) noexcept
         out.force.l_tp = update_phi_control(
             l_phi_, left, left_.total_phi(), model::pi,
             left.phi >= model::pi * 0.4f ? 0.01f : 0.002f,
-            left.phi >= model::pi * 0.4f, out.debug.l_phi);
+            left.phi >= model::pi * 0.4f);
     }
 
     if (right.flat)
@@ -43,7 +43,7 @@ void controller::run_flatten(const inputs& in, step_out& out) noexcept
         out.force.r_tp = update_phi_control(
             r_phi_, right, right_.total_phi(), model::pi,
             right.phi >= model::pi * 0.4f ? 0.01f : 0.002f,
-            right.phi >= model::pi * 0.4f, out.debug.r_phi);
+            right.phi >= model::pi * 0.4f);
     }
 
     out.motor.l_tw = out.motor.r_tw = in.cmd.v > 0.0f ? 1.5f : 0.0f;
@@ -52,6 +52,16 @@ void controller::run_flatten(const inputs& in, step_out& out) noexcept
         odom_.reset();
         reset_phi_control();
         out.fsm_next = chassis_fsm::neutral;
+    }
+
+    auto& debug = out.debug;
+    if (!left.flat)
+    {
+        debug.l_phi = {l_phi_.pid.ref, l_phi_.pid.fdb, l_phi_.pid.result, true};
+    }
+    if (!right.flat)
+    {
+        debug.r_phi = {r_phi_.pid.ref, r_phi_.pid.fdb, r_phi_.pid.result, true};
     }
 }
 

@@ -1,3 +1,4 @@
+#include "cfg.hpp"
 #include "chassis.hpp"
 
 #include <algorithm>
@@ -10,7 +11,7 @@ namespace chassis
  */
 void controller::run_airborne(const inputs& in, step_out& out) noexcept
 {
-    if (!l_contact_.air_seen && in.left.offground)
+    if (!l_contact_.air_seen && in.left.offground) //进入空中状态
     {
         l_contact_.air_seen = true;
         l_contact_.dlen_peak = 0.0f;
@@ -24,17 +25,13 @@ void controller::run_airborne(const inputs& in, step_out& out) noexcept
         r_contact_.touch_timer.reset();
         r_contact_.touchdown = false;
     }
-    if (!l_contact_.touchdown)
+    if (!l_contact_.touchdown) //空中状态
     {
-        const bool finite = std::isfinite(in.left.len) && std::isfinite(in.left.dlen);
-        if (finite)
-        {
-            l_contact_.dlen_peak = std::max(l_contact_.dlen_peak, in.left.dlen);
-        }
-        const bool contact = finite && (in.left.dlen < cfg::touchdown_compress_rate ||
-            (in.left.len < cfg::Lmax - cfg::touchdown_len_margin &&
-             l_contact_.dlen_peak > cfg::touchdown_peak_rate &&
-             l_contact_.dlen_peak - in.left.dlen > cfg::touchdown_rate_drop));
+        l_contact_.dlen_peak = std::max(l_contact_.dlen_peak, in.left.dlen);
+        const bool contact =  (in.left.dlen < cfg::touchdown_compress_rate || //腿长变短速率于阈值，说明落地腿在被压缩
+            (in.left.len < cfg::Lmax - cfg::touchdown_len_margin &&           //仍在伸腿过程
+             l_contact_.dlen_peak > cfg::touchdown_peak_rate &&               //伸长峰值速度大于阈值 //TODO 有点不明白这一项
+             l_contact_.dlen_peak - in.left.dlen > cfg::touchdown_rate_drop));//伸腿加速度减小
         if (l_contact_.touch_timer.update(contact))
         {
             l_contact_.touchdown = true;
@@ -42,12 +39,9 @@ void controller::run_airborne(const inputs& in, step_out& out) noexcept
     }
     if (!r_contact_.touchdown)
     {
-        const bool finite = std::isfinite(in.right.len) && std::isfinite(in.right.dlen);
-        if (finite)
-        {
-            r_contact_.dlen_peak = std::max(r_contact_.dlen_peak, in.right.dlen);
-        }
-        const bool contact = finite && (in.right.dlen < cfg::touchdown_compress_rate ||
+        r_contact_.dlen_peak = std::max(r_contact_.dlen_peak, in.right.dlen);
+
+        const bool contact = (in.right.dlen < cfg::touchdown_compress_rate ||
             (in.right.len < cfg::Lmax - cfg::touchdown_len_margin &&
              r_contact_.dlen_peak > cfg::touchdown_peak_rate &&
              r_contact_.dlen_peak - in.right.dlen > cfg::touchdown_rate_drop));
@@ -74,20 +68,26 @@ void controller::run_airborne(const inputs& in, step_out& out) noexcept
     out.motor.l_tw = 0.0f;
     out.motor.r_tw = 0.0f;
 
-    if (l_contact_.touchdown || r_contact_.touchdown)
+    if (l_contact_.touchdown || r_contact_.touchdown) //任意一条腿落地就切lqr //TODO：是否需要改成都落地才切
     {
         update_leg_lqr(in, out);
     }
     if (!l_contact_.touchdown)
     {
-        out.force.l_f = cfg::air_leg_force;
+        // out.force.l_f = cfg::air_leg_force; //? direct force output for airborne leg
+        len_ramp_.set_value(in.left.len);     //? set leg length to max for airborne leg
+        len_ramp_.set_step(0.0009f); //! 考虑是否要大一点步长
+        out.force.l_f = len_pid_control(l_len_, in.left, cfg::Lmax) - in.left.spring.fs;
     }
     if (!r_contact_.touchdown)
     {
-        out.force.r_f = cfg::air_leg_force;
+        // out.force.r_f = cfg::air_leg_force;
+        len_ramp_.set_value(in.right.len);
+        len_ramp_.set_step(0.0009f);
+        update_leg_pid(in, out);
     }
 
-    if (in.left.alpha >= 0.8f || in.right.alpha >= 0.8f) //空中摆角太大失衡
+    if (in.left.alpha >= 0.8f || in.right.alpha >= 0.8f) //空中摆角太大失衡relax
     {
         reset_phi_control();
         out.fsm_next = chassis_fsm::relax;
@@ -102,6 +102,10 @@ void controller::run_airborne(const inputs& in, step_out& out) noexcept
     }
 
     auto& debug = out.debug;
+    if (!l_contact_.touchdown && r_contact_.touchdown)
+    {
+        debug.l_len = {l_len_.ref, l_len_.fdb, l_len_.result, true};
+    }
     std::copy(torque.begin(), torque.end(), debug.lqr_output);
     const auto& raw = lqr_.raw_output();
     std::copy(raw.begin(), raw.end(), debug.lqr_raw);

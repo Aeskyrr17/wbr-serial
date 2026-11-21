@@ -87,10 +87,7 @@ bool stop_motors() noexcept
     r_wheel.cmd.current = 0.0f;
     wheels.update();
     wheels.transmit(static_cast<std::uint32_t>(bsp::dwt::timeline_us()));
-    const std::uint8_t zero[8]{};
-    const bool wheels_stopped =
-        bsp::can::transmit(cfg::wheel_bus.instance, 0x200, zero, 8) == pnxtypes::status::ok;
-    return l1_stopped && l4_stopped && r1_stopped && r4_stopped && wheels_stopped;
+    return l1_stopped && l4_stopped && r1_stopped && r4_stopped;
 }
 
 bool joints_ready() noexcept

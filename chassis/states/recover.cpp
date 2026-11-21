@@ -22,15 +22,19 @@ void controller::run_recover(const inputs& in, step_out& out) noexcept
     const bool positive = in.imu.pitch > 0.0f;
     const float target = positive ? 0.0f : model::pi;
     out.force.l_tp = update_phi_control(l_phi_, in.left, left_.total_phi(), target, 0.005f,
-                                           positive, out.debug.l_phi);
+                                           positive);
     out.force.r_tp = update_phi_control(r_phi_, in.right, right_.total_phi(), target, 0.005f,
-                                           positive, out.debug.r_phi);
+                                           positive);
     if (std::fabs(in.left.phi - target) < 0.1f &&
         std::fabs(in.right.phi - target) < 0.1f)
     {
         out.force.l_tp = positive ? -35.0f : 35.0f;
         out.force.r_tp = positive ? 35.0f : -35.0f;
     }
+
+    auto& debug = out.debug;
+    debug.l_phi = {l_phi_.pid.ref, l_phi_.pid.fdb, l_phi_.pid.result, true};
+    debug.r_phi = {r_phi_.pid.ref, r_phi_.pid.fdb, r_phi_.pid.result, true};
 }
 
 } // namespace chassis

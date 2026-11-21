@@ -37,19 +37,17 @@ void controller::apply_pid_tuning() noexcept
 /**
  * @brief 腿长的pid控制
  */
-float controller::len_pid_control(control::pid& pid, const leg_state& leg, float ref,
-                              pid_debug& debug) noexcept
+float controller::len_pid_control(control::pid& pid, const leg_state& leg, float ref) noexcept
 {
     pid.ref = ref;
     pid.fdb = leg.len;
     pid.update(leg.dlen);
-    debug = {pid.ref, pid.fdb, pid.result, true};
     return pid.result;
 }
 
 float controller::update_phi_control(phi_pid_control& ctrl, const leg_state& leg,
                                      float total_phi, float target, float step,
-                                     bool positive, pid_debug& debug) noexcept
+                                     bool positive) noexcept
 {
     if (!ctrl.initialized)
     {
@@ -67,7 +65,6 @@ float controller::update_phi_control(phi_pid_control& ctrl, const leg_state& leg
     ctrl.pid.ref = ctrl.ramp.update(ctrl.target);
     ctrl.pid.fdb = total_phi;
     ctrl.pid.update(leg.dphi); // POSITION compatibility: velocity is intentionally unused.
-    debug = {ctrl.pid.ref, ctrl.pid.fdb, ctrl.pid.result, true};
     return ctrl.pid.result;
 }
 
@@ -134,12 +131,15 @@ void controller::update_leg_pid(const inputs& in, step_out& out) noexcept
 
     target_len_ = std::clamp(in.cmd.len, cfg::Lmin, cfg::Lmax);
     const float cmd_len = len_ramp_.update(target_len_);
-    out.force.l_f = len_pid_control(l_len_, left, cmd_len + roll_.result, out.debug.l_len) +
+    out.force.l_f = len_pid_control(l_len_, left, cmd_len + roll_.result) +
                     cfg::gravity_feedforward - left.spring.fs;
-    out.force.r_f = len_pid_control(r_len_, right, cmd_len - roll_.result, out.debug.r_len) +
+    out.force.r_f = len_pid_control(r_len_, right, cmd_len - roll_.result) +
                     cfg::gravity_feedforward - right.spring.fs;
 
-    out.debug.roll = {roll_.ref, roll_.fdb, roll_.result, true};
+    auto& debug = out.debug;
+    debug.l_len = {l_len_.ref, l_len_.fdb, l_len_.result, true};
+    debug.r_len = {r_len_.ref, r_len_.fdb, r_len_.result, true};
+    debug.roll = {roll_.ref, roll_.fdb, roll_.result, true};
 }
 
 void controller::update_leg_lqr(const inputs& in, step_out& out) noexcept
