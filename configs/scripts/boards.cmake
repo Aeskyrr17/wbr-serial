@@ -20,7 +20,7 @@ function(config_resource out kind key)
     set(${out} "${value}" PARENT_SCOPE)
 endfunction()
 
-# 两块板都写入生成头；当前 BOARD 的后端选择同时导出给构建系统。
+# 两块板都写入生成头；当前 BOARD 的启用选择同时导出给构建系统。
 set(_boards "")
 foreach(_board IN ITEMS h723_mc02 f407_cboard)
     file(READ "${_config_dir}/../boards/wrapper/${_board}/include/config.hpp" _resources)
@@ -35,18 +35,9 @@ foreach(_board IN ITEMS h723_mc02 f407_cboard)
     if(NOT _dm_bus MATCHES "${_can_names}")
         message(FATAL_ERROR "boards.${_board}.dmimu_can: unsupported CAN resource")
     endif()
-    string(JSON _ahrs_device GET "${_json}" boards ${_board} ahrs_device)
-    if(_ahrs_device STREQUAL "none")
-        set(_ahrs_backend 0)
-    elseif(_ahrs_device STREQUAL "bmi088")
-        set(_ahrs_backend 1)
-    elseif(_ahrs_device STREQUAL "dmimu")
-        set(_ahrs_backend 2)
-        if(_dm_bus STREQUAL "none")
-            message(FATAL_ERROR "boards.${_board}: DMIMU AHRS requires dmimu_can")
-        endif()
-    else()
-        message(FATAL_ERROR "boards.${_board}.ahrs_device: expected none/bmi088/dmimu")
+    string(JSON _bmi270_bus GET "${_json}" boards ${_board} bmi270_can)
+    if(NOT _bmi270_bus MATCHES "${_can_names}")
+        message(FATAL_ERROR "boards.${_board}.bmi270_can: unsupported CAN resource")
     endif()
     config_bool(_heater_enabled boards ${_board} bmi088_heater_enabled)
     config_float(_thermal_target 20 60 boards ${_board} bmi088_thermal target)
@@ -127,23 +118,21 @@ foreach(_board IN ITEMS h723_mc02 f407_cboard)
     endif()
     # Export the same validated choices to CMake for the selected board.
     if(_board STREQUAL BOARD)
-        set(USER_AHRS_DEVICE "${_ahrs_device}")
         set(USER_REMOTER_DR16 ${_remote_dr16})
         set(USER_REMOTER_VT03 ${_remote_vt03})
         set(USER_REMOTER_PS2 ${_remote_ps2})
     endif()
     string(CONFIGURE [=[
 @_condition@
-#define USER_AHRS_DEVICE @_ahrs_backend@
 #define USER_REMOTER_DR16 @_remote_dr16@
 #define USER_REMOTER_VT03 @_remote_vt03@
 #define USER_REMOTER_PS2 @_remote_ps2@
-inline constexpr char ahrs_device[] = "@_ahrs_device@";
 inline constexpr bool bmi088_heater_enabled = @_heater_enabled@;
 inline constexpr imu::bmi088_thermal bmi088_thermal{@_thermal_target@, @_thermal_boost@,
     @_thermal_reboost@, @_thermal_approach_start@, @_thermal_approach_end@, @_thermal_hold_max@,
     @_thermal_kp@, @_thermal_ki@, @_thermal_kd@, @_thermal_max_out@};
 inline constexpr bsp::can::config dmimu_can{bsp::can::handle::@_dm_bus@, bsp::can::id_type::standard};
+inline constexpr bsp::can::config bmi270_can{bsp::can::handle::@_bmi270_bus@, bsp::can::id_type::standard};
 inline constexpr auto rfid_uart = @_rfid_uart@;
 inline constexpr buzzer::config rfid_buzzer{@_buzzer_timer@,
     bsp::pwm::channel::ch@_buzzer_channel@, @_rfid_buzzer_period_us@,

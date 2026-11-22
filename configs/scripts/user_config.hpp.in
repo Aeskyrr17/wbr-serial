@@ -5,6 +5,7 @@
 #include "ui.hpp"
 #include "ps2.hpp"
 #include "dmimu.hpp"
+#include "bmi270.hpp"
 #include "bmi088.hpp"
 #include "referee.hpp"
 #include "buzzer.hpp"
@@ -37,6 +38,7 @@ namespace ahrs
 inline constexpr uint32_t thread_priority = @_ahrs_priority@;
 inline constexpr ULONG bmi088_stack_size = @_ahrs_bmi088_stack@;
 inline constexpr ULONG dmimu_stack_size = @_ahrs_dmimu_stack@;
+inline constexpr ULONG bmi270_stack_size = @_ahrs_bmi270_stack@;
 inline constexpr ULONG sample_period_ticks = @_ahrs_period@;
 inline constexpr float max_dt = @_ahrs_max_dt@;
 inline constexpr uint32_t retry_period_ms = @_ahrs_retry@;
@@ -45,6 +47,13 @@ inline constexpr bool calibrate_on_start = @_ahrs_calibrate@;
 inline constexpr ULONG dmimu_wait_ticks = @_ahrs_wait@;
 inline constexpr uint32_t dmimu_request_period_ms = @_ahrs_request@;
 inline constexpr uint32_t dmimu_queue_frames = @_ahrs_queue@;
+inline constexpr ULONG bmi270_wait_ticks = @_ahrs_bmi270_wait@;
+inline constexpr uint32_t bmi270_queue_frames = @_ahrs_bmi270_queue@;
+inline constexpr bool bmi270_calibrate_on_start = @_bmi270_calibrate@;
+inline constexpr uint32_t bmi270_calibration_poll_ms = @_bmi270_poll@;
+inline constexpr uint32_t bmi270_calibration_timeout_ms = @_bmi270_calibration_timeout@;
+inline constexpr uint32_t bmi270_command_interval_ms = @_bmi270_interval@;
+inline constexpr uint32_t bmi270_command_timeout_ms = @_bmi270_timeout@;
 namespace eskf
 {
 inline constexpr float gyro_noise = @_eskf_gyro_noise@;
@@ -87,6 +96,11 @@ inline constexpr uint32_t ps2_period_ms = @_remoter_ps2_period@;
 inline constexpr ui::config ui{ui_uart.instance, @_ui_timeout@};
 inline constexpr imu::dmimu::config dmimu{dmimu_can.instance, @_dm_id@, @_dm_master@,
     imu::dmimu::mode::@_dm_mode@, @_dm_window@, @_dm_offline@};
+inline constexpr imu::bmi270::config bmi270{bmi270_can.instance, @_bmi270_command_id@, @_bmi270_target_id@,
+    @_bmi270_window@, @_bmi270_gyro_timeout@, @_bmi270_quaternion_timeout@, @_bmi270_accel_timeout@,
+    @_bmi270_euler_timeout@, @_bmi270_receive_gyro@, @_bmi270_receive_quaternion@,
+    @_bmi270_receive_accel@, @_bmi270_receive_euler@, {@_bmi270_gyro_offset@},
+    {@_bmi270_accel_offset@}};
 // HAL's DR16 word length includes the parity bit.
 inline constexpr bsp::usart::line_config dr16_line{100000, bsp::usart::word_length::bits_9,
     bsp::usart::stop_bits::one, bsp::usart::parity::even, false, true};
