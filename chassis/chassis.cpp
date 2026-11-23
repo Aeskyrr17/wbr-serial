@@ -249,7 +249,8 @@ void controller::step(const ::imu::attitude::state& imu, const motor_fdb& fdb,
     obs.r_dalpha = right.dalpha;
     obs.pitch = imu.pitch;
     obs.dpitch = imu.gyro.y;
-    const bool imu_valid = imu.online && imu.sequence != 0U && now - imu.received_ms <= 100U;
+    const bool imu_valid =
+        imu.online && imu.sequence != 0U && now - imu.received_ms <= cfg::imu_timeout_ms;
     const bool valid = imu_valid && fdb.motors_online && left_valid && right_valid;
     const inputs in{imu, fdb, cmd, left, right, obs, valid};
     if (!valid || !cmd.move) //imu或电机反馈异常，或者没有移动指令，relax
@@ -323,6 +324,7 @@ void controller::step(const ::imu::attitude::state& imu, const motor_fdb& fdb,
     state.pitch = in.imu.pitch;
     state.yaw = in.imu.total_yaw;
     state.v_cmd_enabled = out.v_cmd_enabled;
+    state.motors_ready = fdb.motors_online;
     state.fsm_executed = executed;
     state.fsm_next = out.fsm_next;
     state.normal_force = left.normal_force + right.normal_force;

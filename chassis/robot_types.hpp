@@ -149,6 +149,7 @@ struct chassis_state
     float yaw = 0.0f;
     // Legacy normal: allows command.v, including wheel assistance in FLATTEN/NEUTRAL.
     bool v_cmd_enabled = false;
+    bool motors_ready = false; // Current motor feedback is online and joints are enabled.
     chassis_fsm fsm_executed = chassis_fsm::relax; // Mode used for this output.
     chassis_fsm fsm_next = chassis_fsm::relax; // Mode selected for the next step.
     float normal_force = 0.0f;

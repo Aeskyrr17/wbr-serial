@@ -7,6 +7,7 @@ namespace chassis::cfg
 // Application timing and temporary test selection.
 inline constexpr float control_dt = 0.001f; // Nominal control period, s.
 inline constexpr bool spring_test = false; // Temporary left-leg spring cancellation test.
+inline constexpr std::uint32_t imu_timeout_ms = 100U;
 
 // Software leg-length bounds and balance gain selection, m.
 inline constexpr float Lmin = 0.16f;

@@ -8,6 +8,7 @@
 #include "command/cmd.hpp"
 #include "dm_manager.hpp"
 #include "dji_manager.hpp"
+#include "led.hpp"
 #include "peripherals.hpp"
 #include "ps2.hpp"
 #include "robot_debug.hpp"
@@ -23,13 +24,17 @@ namespace
 {
 TX_THREAD control_thread{};
 TX_THREAD command_thread{};
+TX_THREAD alive_thread{};
 alignas(8) std::uint8_t control_stack[8192]{};
 alignas(8) std::uint8_t command_stack[4096]{};
+alignas(8) std::uint8_t alive_stack[1024]{};
 imu::attitude::output imu_topic{};
 msg::topic<cmd_frame> command_topic{};
 msg::topic<chassis_state> state_topic{};
 msg::subscriber<cmd_frame> command_sub{};
 msg::subscriber<chassis_state> state_sub{};
+msg::subscriber<cmd_frame> alive_cmd_sub{};
+msg::subscriber<chassis_state> alive_state_sub{};
 motor::dm::config_t joint_params{
     cfg::joint_position_limit, cfg::joint_velocity_limit, cfg::joint_torque_limit,
     cfg::joint_velocity_scale, cfg::joint_wrap_position};
@@ -215,7 +220,7 @@ void run_control(ULONG) noexcept
         auto imu_input = imu;
         imu_input.online = imu.online && imu.stage == imu::attitude::phase::running;
         const bool imu_valid = imu_input.online && imu_input.sequence != 0U &&
-                               now - imu_input.received_ms <= 100U;
+                               now - imu_input.received_ms <= cfg::imu_timeout_ms;
         // Match the previous AHRS x-offset compensation at the application boundary.
         imu_input.accel.x += 0.2f * imu.gyro.z * imu.gyro.z;
         motor_cmd output{};
@@ -330,6 +335,86 @@ void run_command(ULONG) noexcept
         tx_thread_sleep(1U);
     }
 }
+
+extern "C" void run_alive(ULONG) noexcept
+{
+    using pnxtypes::status;
+    constexpr bsp::can::handle can_buses[]{cfg::joint_bus.instance, cfg::wheel_bus.instance};
+    msg::subscriber<imu::attitude::state> imu_sub{};
+    imu::attitude::state imu{};
+    chassis_state state{};
+    cmd_frame command{};
+
+    (void)led::init();
+    auto color = led::color::white;
+    bool lit = true;
+    ULONG blink_start = tx_time_get();
+    ULONG last_can_error = blink_start - 1000U;
+    for (;;)
+    {
+        const bool control_alive = alive_state_sub.read(state) == status::ok;
+        const bool command_alive = alive_cmd_sub.read(command) == status::ok;
+        // The first control snapshot confirms that the IMU service has started.
+        if (control_alive && !imu_sub.valid())
+        {
+            imu_sub = imu_topic.subscribe();
+        }
+        if (imu_sub.valid())
+        {
+            (void)imu_sub.read(imu);
+        }
+        const bool imu_alive = imu.online && imu.stage == imu::attitude::phase::running &&
+                               imu.sequence != 0U &&
+                               HAL_GetTick() - imu.received_ms <= cfg::imu_timeout_ms;
+
+        const ULONG now = tx_time_get();
+        for (const auto bus : can_buses)
+        {
+            auto* errors = bsp::can::err_sem(bus);
+            const bool notified = errors && tx_semaphore_get(errors, TX_NO_WAIT) == TX_SUCCESS;
+            const auto bus_status = bsp::can::current_status(bus);
+            if (notified || (bus_status != status::ok && bus_status != status::not_initialized))
+            {
+                last_can_error = now;
+            }
+        }
+
+        auto next_color = led::color::blue;
+        if (now - last_can_error < 1000U)
+        {
+            next_color = led::color::red;
+        }
+        else if (!imu_alive)
+        {
+            next_color = led::color::white;
+        }
+        else if (control_alive && command_alive && state.motors_ready)
+        {
+            next_color = led::color::green;
+        }
+        if (next_color != color)
+        {
+            color = next_color;
+            blink_start = now;
+            lit = true;
+        }
+        else if (now - blink_start >= 500U)
+        {
+            blink_start = now;
+            lit = !lit;
+        }
+
+        if (lit)
+        {
+            (void)led::on(color);
+        }
+        else
+        {
+            (void)led::all_off();
+        }
+        tx_thread_sleep(100U);
+    }
+}
 } // namespace
 } // namespace chassis
 
@@ -343,7 +428,10 @@ extern "C" void app_start()
     }
     chassis::command_sub = chassis::command_topic.subscribe();
     chassis::state_sub = chassis::state_topic.subscribe();
-    if (!chassis::command_sub.valid() || !chassis::state_sub.valid())
+    chassis::alive_cmd_sub = chassis::command_topic.subscribe();
+    chassis::alive_state_sub = chassis::state_topic.subscribe();
+    if (!chassis::command_sub.valid() || !chassis::state_sub.valid() ||
+        !chassis::alive_cmd_sub.valid() || !chassis::alive_state_sub.valid())
     {
         chassis::start_status = TX_NOT_DONE;
         return;
@@ -358,4 +446,11 @@ extern "C" void app_start()
     chassis::start_status = tx_thread_create(&chassis::command_thread, const_cast<CHAR*>("chassis_cmd"),
         chassis::run_command, 0, chassis::command_stack, sizeof(chassis::command_stack),
         7, 7, TX_NO_TIME_SLICE, TX_AUTO_START);
+    if (chassis::start_status != TX_SUCCESS)
+    {
+        return;
+    }
+    chassis::start_status = tx_thread_create(&chassis::alive_thread, const_cast<CHAR*>("chassis_alive"),
+        chassis::run_alive, 0, chassis::alive_stack, sizeof(chassis::alive_stack),
+        8, 8, TX_NO_TIME_SLICE, TX_AUTO_START);
 }
