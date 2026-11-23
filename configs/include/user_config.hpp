@@ -5,6 +5,7 @@
 #include "ui.hpp"
 #include "ps2.hpp"
 #include "dmimu.hpp"
+#include "bmi270.hpp"
 #include "bmi088.hpp"
 #include "referee.hpp"
 #include "buzzer.hpp"
@@ -12,16 +13,15 @@
 namespace user_config
 {
 #if defined(STM32H723xx)
-#define USER_AHRS_DEVICE 1
 #define USER_REMOTER_DR16 1
 #define USER_REMOTER_VT03 1
 #define USER_REMOTER_PS2 1
-inline constexpr char ahrs_device[] = "bmi088";
 inline constexpr bool bmi088_heater_enabled = true;
 inline constexpr imu::bmi088_thermal bmi088_thermal{45.0f, 0.059999999999999998f,
     0.050000000000000003f, 0.043999999999999997f, 0.029000000000000001f, 0.040000000000000001f,
     300.0f, 0.059999999999999998f, 100.0f, 90.0f};
 inline constexpr bsp::can::config dmimu_can{bsp::can::handle::fdcan1, bsp::can::id_type::standard};
+inline constexpr bsp::can::config bmi270_can{bsp::can::handle::fdcan3, bsp::can::id_type::standard};
 inline constexpr auto rfid_uart = bsp::peripherals::usart10;
 inline constexpr buzzer::config rfid_buzzer{bsp::peripherals::tim12,
     bsp::pwm::channel::ch2, 333,
@@ -37,16 +37,15 @@ inline constexpr bsp::gpio::config ps2_cs{(bsp::peripherals::ps2_cs).instance,
     (bsp::peripherals::ps2_cs).pin, bsp::active_level::low};
 inline constexpr auto ps2_spi = bsp::spi::handle::spi1;
 #elif defined(STM32F407xx)
-#define USER_AHRS_DEVICE 1
 #define USER_REMOTER_DR16 1
 #define USER_REMOTER_VT03 1
 #define USER_REMOTER_PS2 0
-inline constexpr char ahrs_device[] = "bmi088";
 inline constexpr bool bmi088_heater_enabled = false;
 inline constexpr imu::bmi088_thermal bmi088_thermal{45.0f, 0.059999999999999998f,
     0.050000000000000003f, 0.043999999999999997f, 0.029000000000000001f, 0.040000000000000001f,
     650.0f, 0.080000000000000002f, 10.0f, 900.0f};
 inline constexpr bsp::can::config dmimu_can{bsp::can::handle::can1, bsp::can::id_type::standard};
+inline constexpr bsp::can::config bmi270_can{bsp::can::handle::can1, bsp::can::id_type::standard};
 inline constexpr auto rfid_uart = bsp::peripherals::usart1;
 inline constexpr buzzer::config rfid_buzzer{bsp::peripherals::tim4,
     bsp::pwm::channel::ch3, 333,
@@ -87,6 +86,7 @@ namespace ahrs
 inline constexpr uint32_t thread_priority = 3;
 inline constexpr ULONG bmi088_stack_size = 8192;
 inline constexpr ULONG dmimu_stack_size = 2048;
+inline constexpr ULONG bmi270_stack_size = 2048;
 inline constexpr ULONG sample_period_ticks = 1;
 inline constexpr float max_dt = 0.02f;
 inline constexpr uint32_t retry_period_ms = 1000;
@@ -95,6 +95,13 @@ inline constexpr bool calibrate_on_start = false;
 inline constexpr ULONG dmimu_wait_ticks = 1;
 inline constexpr uint32_t dmimu_request_period_ms = 10;
 inline constexpr uint32_t dmimu_queue_frames = 32;
+inline constexpr ULONG bmi270_wait_ticks = 1;
+inline constexpr uint32_t bmi270_queue_frames = 32;
+inline constexpr bool bmi270_calibrate_on_start = true;
+inline constexpr uint32_t bmi270_calibration_poll_ms = 1000;
+inline constexpr uint32_t bmi270_calibration_timeout_ms = 200000;
+inline constexpr uint32_t bmi270_command_interval_ms = 20;
+inline constexpr uint32_t bmi270_command_timeout_ms = 200;
 namespace eskf
 {
 inline constexpr float gyro_noise = 0.00029999999999999997f;
@@ -137,6 +144,11 @@ inline constexpr uint32_t ps2_period_ms = 10;
 inline constexpr ui::config ui{ui_uart.instance, 100};
 inline constexpr imu::dmimu::config dmimu{dmimu_can.instance, 1, 17,
     imu::dmimu::mode::active, 20, 100};
+inline constexpr imu::bmi270::config bmi270{bmi270_can.instance, 624, 625,
+    20, 5, 10, 5,
+    10, true, true,
+    true, false, {0.0f, 0.0f, 0.0f},
+    {0.0f, 0.0f, 0.0f}};
 // HAL's DR16 word length includes the parity bit.
 inline constexpr bsp::usart::line_config dr16_line{100000, bsp::usart::word_length::bits_9,
     bsp::usart::stop_bits::one, bsp::usart::parity::even, false, true};

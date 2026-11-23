@@ -8,6 +8,35 @@ if(NOT _dm_mode MATCHES "^(active|request)$" OR _dm_window GREATER _dm_offline)
     message(FATAL_ERROR "dmimu: mode must be active/request; assembly timeout must not exceed offline timeout")
 endif()
 
+# BMI270 uses fixed command and target identifiers.
+config_integer(_bmi270_command_id 624 624 bmi270 command_id)
+config_integer(_bmi270_target_id 625 625 bmi270 target_id)
+config_bool(_bmi270_calibrate bmi270 calibrate_on_start)
+config_vector3(_bmi270_gyro_offset bmi270 gyro_offset)
+config_vector3(_bmi270_accel_offset bmi270 accel_offset)
+foreach(_axis RANGE 0 2)
+    config_number(_offset -0.15 0.15 bmi270 gyro_offset ${_axis})
+endforeach()
+config_integer(_bmi270_poll 20 2147483647 bmi270 calibration_poll_ms)
+config_integer(_bmi270_calibration_timeout 1 2147483647 bmi270 calibration_timeout_ms)
+config_integer(_bmi270_window 1 2147483647 bmi270 assembly_timeout_ms)
+config_integer(_bmi270_gyro_timeout 1 2147483647 bmi270 gyro_timeout_ms)
+config_integer(_bmi270_quaternion_timeout 1 2147483647 bmi270 quaternion_timeout_ms)
+config_integer(_bmi270_accel_timeout 1 2147483647 bmi270 accel_timeout_ms)
+config_integer(_bmi270_euler_timeout 1 2147483647 bmi270 euler_timeout_ms)
+config_bool(_bmi270_receive_gyro bmi270 receive_gyro)
+config_bool(_bmi270_receive_quaternion bmi270 receive_quaternion)
+config_bool(_bmi270_receive_accel bmi270 receive_accel)
+config_bool(_bmi270_receive_euler bmi270 receive_euler)
+# Seven offset frames must fit the node's 200 ms assembly window before retries.
+config_integer(_bmi270_interval 20 30 bmi270 command_interval_ms)
+config_integer(_bmi270_timeout 100 2147483647 bmi270 command_timeout_ms)
+if(_bmi270_interval GREATER _bmi270_timeout OR _bmi270_interval GREATER _bmi270_poll OR
+   _bmi270_timeout GREATER _bmi270_calibration_timeout OR
+   _bmi270_poll GREATER _bmi270_calibration_timeout)
+    message(FATAL_ERROR "bmi270: invalid timeout/interval relationship")
+endif()
+
 # AHRS 线程、采样与恢复策略。
 config_integer(_ahrs_priority 0 31 ahrs thread_priority)
 config_integer(_ahrs_period 1 2147483647 ahrs sample_period_ticks)
@@ -20,6 +49,10 @@ config_integer(_ahrs_request 1 2147483647 ahrs dmimu_request_period_ms)
 config_integer(_ahrs_queue 4 256 ahrs dmimu_queue_frames)
 config_integer(_ahrs_bmi088_stack 2048 32768 ahrs bmi088_stack_size)
 config_integer(_ahrs_dmimu_stack 1024 16384 ahrs dmimu_stack_size)
+# Both supported boards use a 1 ms ThreadX tick.
+config_integer(_ahrs_bmi270_wait 1 30 ahrs bmi270_wait_ticks)
+config_integer(_ahrs_bmi270_queue 8 256 ahrs bmi270_queue_frames)
+config_integer(_ahrs_bmi270_stack 1024 16384 ahrs bmi270_stack_size)
 
 # BMI088 温控；当前 PID 参数对应固定 125 ms 控制周期。
 foreach(_parameter IN ITEMS period_ms timeout_ms stable_time_ms)

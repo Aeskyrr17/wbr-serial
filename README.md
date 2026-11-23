@@ -10,7 +10,7 @@
 | `bsp` | GPIO、SPI、CAN、UART、PWM 等外设操作 |
 | `libs` | 数学、控制、消息、CRC 等基础设施 |
 | `devices` | 由应用驱动的 LED、电机、遥控器和裁判 UI，不创建后台线程 |
-| `modules/imu` | BMI088/DMIMU 采集服务、姿态输出、ESKF 和 BMI088 温控 |
+| `modules/imu` | BMI088、BMI270 和 DMIMU 采集服务、姿态输出、ESKF 和 BMI088 温控 |
 | `modules/rfid` | 显式初始化的 RFID data 读取、蜂鸣提示和遥控输入限制 |
 | `modules/referee` | 裁判接收线程、协议解析、类型缓存和可选类型回调 |
 | `configs` | 用户 JSON 配置及生成脚本、生成头文件 |
@@ -21,7 +21,7 @@ RFID 的遥控限制在设备解码层执行，应用之前缓存的控制目标
 
 ## 配置与接入
 
-板载 BMI088、LED 和固定 GPIO 接线随选板切换；AHRS 设备和应用串口选择集中在
+板载 BMI088、LED 和固定 GPIO 接线随选板切换；外置 IMU 总线和应用串口选择集中在
 [`configs/user_config.json`](configs/user_config.json)，生成结果为 `configs/include/user_config.hpp`。UI 当前以 USART1 为示例，
 请按实际接线修改。配置头不初始化设备，调用方式见 [devices 文档](devices/README.md#应用资源选择)。
 
@@ -32,7 +32,7 @@ RFID 的遥控限制在设备解码层执行，应用之前缓存的控制目标
 | --- | --- |
 | `values.cmake` | 数值、布尔值和三维向量校验 |
 | `communication.cmake` | UI、PS2、遥控与裁判接收参数 |
-| `imu.cmake` | DMIMU、AHRS、ESKF 和温控参数 |
+| `imu.cmake` | IMU 协议、AHRS、ESKF 和温控参数 |
 | `boards.cmake` | 板级资源、启用选择和资源冲突检查 |
 | `user_config.hpp.in` | 生成头文件模板 |
 
@@ -45,18 +45,19 @@ CMake 配置阶段自动生成头文件，构建时会检测 JSON 修改并重�
 
 | JSON 字段 | 用途 |
 | --- | --- |
-| `boards.<板型>` | AHRS 后端、串口/CAN/PS2 资源、遥控器启用选择和板级温控参数 |
+| `boards.<板型>` | 串口/CAN/PS2 资源、遥控器启用选择和板级温控参数 |
 | `ahrs` | 采样周期、线程栈、恢复策略、传感器零偏及 ESKF 参数 |
 | `dmimu` | 设备 ID、主动/请求模式、组帧及离线超时 |
+| `bmi270` | 命令 ID、反馈帧选择、启动校准和偏置 |
 | `bmi088_heater` | 温控周期、温度超时、稳定判定、线程优先级和栈大小 |
 | `referee` | 接收线程优先级、周期、离线超时和 `stack_size`（默认 2048 字节） |
 | `ui`、`ps2` | 发送超时、PS2 时序及死区 |
 | `remoter` | 供应用组织遥控处理的调度参数，不会创建遥控线程 |
 | `application.imu_offset` | 应用参考点到 IMU 的位移，设备服务不自动执行位置补偿 |
 
-`boards.<板型>.ahrs_device` 选择 `bmi088`、`dmimu` 或 `none`，`ahrs` 保存调度参数。
-通过 `imu::start_bmi088()` 或 `imu::start_dmimu()` 启动，在 `imu::attitude::output`
-订阅姿态；配置项和共享 CAN 启动顺序见 [IMU 文档](modules/imu/README.md)。
+`ahrs` 保存 IMU 调度参数。应用通过 `imu::start_bmi088(output)`、`imu::start_bmi270(output)`
+或 `imu::start_dmimu(output, mutex)` 启动所需服务，为每个 IMU 提供独立的
+`imu::attitude::output` 对象。订阅方式和 CAN 启动顺序见 [模块接入文档](modules/README.md)。
 
 裁判系统通过 `referee::init(user_config::referee)` 启动。接收线程完成组帧、校验和解析，
 应用用 `referee::read(sample<T>&)` 读取已解析的数据；需要逐包处理时，在 `referee::callbacks`

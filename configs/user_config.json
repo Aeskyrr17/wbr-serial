@@ -17,7 +17,7 @@
             "ps2_cs": "ps2_cs",
             "ps2_spi": "spi1",
             "dmimu_can": "fdcan1",
-            "ahrs_device": "bmi088",
+            "bmi270_can": "fdcan3",
             "bmi088_thermal": {
                 "target": 45.0,
                 "boost": 0.06,
@@ -46,7 +46,7 @@
             "ps2_cs": "none",
             "ps2_spi": "none",
             "dmimu_can": "can1",
-            "ahrs_device": "bmi088",
+            "bmi270_can": "can1",
             "bmi088_thermal": {
                 "target": 45.0,
                 "boost": 0.06,
@@ -76,6 +76,26 @@
         "assembly_timeout_ms": 20,
         "offline_timeout_ms": 100
     },
+    "bmi270": {
+        "command_id": 624,
+        "target_id": 625,
+        "calibrate_on_start": true,
+        "gyro_offset": [0.0, 0.0, 0.0],
+        "accel_offset": [0.0, 0.0, 0.0],
+        "receive_gyro": true,
+        "receive_quaternion": true,
+        "receive_accel": true,
+        "receive_euler": false,
+        "calibration_poll_ms": 1000,
+        "calibration_timeout_ms": 200000,
+        "assembly_timeout_ms": 20,
+        "gyro_timeout_ms": 5,
+        "quaternion_timeout_ms": 10,
+        "accel_timeout_ms": 5,
+        "euler_timeout_ms": 10,
+        "command_interval_ms": 20,
+        "command_timeout_ms": 200
+    },
     "ahrs": {
         "thread_priority": 3,
         "sample_period_ticks": 1,
@@ -86,6 +106,9 @@
         "dmimu_wait_ticks": 1,
         "dmimu_request_period_ms": 10,
         "dmimu_queue_frames": 32,
+        "bmi270_wait_ticks": 1,
+        "bmi270_queue_frames": 32,
+        "bmi270_stack_size": 2048,
         "bmi088_stack_size": 8192,
         "dmimu_stack_size": 2048,
         "eskf": {

@@ -5,6 +5,9 @@ H723 的 `app_start` 创建底盘控制线程和遥控命令线程。控制线�
 两线程使用 `msg` 最新值交换命令和底盘状态。IOC 和板级配置沿用模板；
 应用绑定见 `peripherals.hpp`。F407 不编译此底盘应用。
 
+应用持有静态 `imu_topic`，通过 `imu::start_bmi088(imu_topic)` 启动服务，再订阅该话题。
+话题在固件运行期间保持有效，初始化由 IMU 服务完成。
+
 - `chassis.cpp`、`states/`：控制主流程、公共控制函数和各状态实现；NORMAL 同时执行平衡 LQR 与腿高/横滚 LQR，SPIN 使用腿长及横滚 PID。
 - `lqr.hpp`、`leg_lqr.hpp`：两套控制器；`model/` 中的系数取自旧工作区当前内容，普通构建不生成或修改它们。
 - `app.cpp`、`peripherals.hpp` 和 `command/`：应用启动、设备绑定、PS2 命令、位置保持与失联行为。

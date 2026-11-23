@@ -25,6 +25,7 @@ TX_THREAD control_thread{};
 TX_THREAD command_thread{};
 alignas(8) std::uint8_t control_stack[8192]{};
 alignas(8) std::uint8_t command_stack[4096]{};
+imu::attitude::output imu_topic{};
 msg::topic<cmd_frame> command_topic{};
 msg::topic<chassis_state> state_topic{};
 msg::subscriber<cmd_frame> command_sub{};
@@ -151,12 +152,13 @@ bool enable_joints(std::uint8_t& confirmed) noexcept
 void run_control(ULONG) noexcept
 {
     using pnxtypes::status;
-    if (bsp::dwt::init() != status::ok || imu::start_bmi088() != status::ok || !init_motors())
+    if (bsp::dwt::init() != status::ok || imu::start_bmi088(imu_topic) != status::ok ||
+        !init_motors())
     {
         start_status = TX_NOT_DONE;
         return;
     }
-    auto imu_sub = imu::attitude::output.subscribe();
+    auto imu_sub = imu_topic.subscribe();
     if (!imu_sub.valid())
     {
         start_status = TX_NOT_DONE;
