@@ -1,5 +1,6 @@
 #include "chassis.hpp"
 
+#include "bsp_dwt.hpp"
 #include "model/chassis_model.hpp"
 #include "model/leg_lqr_coeffs.hpp"
 
@@ -165,6 +166,39 @@ void controller::update_leg_lqr(const inputs& in, step_out& out) noexcept
     leg_debug.active = true;
 }
 
+void controller::update_leg_mpc(const inputs& in, step_out& out) noexcept
+{
+    const auto& left = in.left;
+    const auto& right = in.right;
+    const float l_proj = std::cos(left.alpha);
+    const float r_proj = std::cos(right.alpha);
+    if (!(std::fabs(l_proj) >= 0.001f && std::fabs(r_proj) >= 0.001f))
+    {
+        out.fsm_next = chassis_fsm::relax;
+        return;
+    }
+
+    target_len_ = std::clamp(in.cmd.len, cfg::Lmin, cfg::Lmax);
+    const float previous_len = len_ramp_.value();
+    const float cmd_len = len_ramp_.update(target_len_);
+    const float cmd_dlen = (cmd_len - previous_len) / cfg::control_dt;
+    const auto leg_obs = leg_lqr::observe(in.imu, left, right); //因为mpc和lqr的kinematic一样，暂时复用
+    const auto leg_ref = leg_lqr::reference(cmd_len, cmd_dlen, tuning.alpha_trim);
+    const auto now_us = bsp::dwt::timeline_us();
+    const auto support = leg_mpc_.update(leg_obs, leg_ref, now_us, bsp::dwt::timeline_us);
+    // Convert held total support to active axial force using the current geometry.
+    out.force.l_f = support[0] / l_proj - left.spring.fs;
+    out.force.r_f = support[1] / r_proj - right.spring.fs;
+
+    auto& debug = out.debug;
+    debug.leg_mpc = leg_mpc_.diagnostics();
+    auto& leg_debug = debug.leg_lqr;
+    std::copy(leg_obs.begin(), leg_obs.end(), leg_debug.obs);
+    std::copy(leg_ref.begin(), leg_ref.end(), leg_debug.ref);
+    std::copy(support.begin(), support.end(), leg_debug.support_force);
+    leg_debug.active = debug.leg_mpc.updated && debug.leg_mpc.fallback;
+}
+
 void controller::run_state(chassis_fsm executed, const inputs& in,
                            step_out& out) noexcept
 {
@@ -283,6 +317,12 @@ void controller::step(const ::imu::attitude::state& imu, const motor_fdb& fdb,
     step_out out{};
     out.fsm_next = fsm_;
     run_state(executed, in, out);
+    if (executed != chassis_fsm::normal && out.fsm_next == chassis_fsm::normal)
+    {
+        // Recover commanded total support from the outgoing forces before VMC limits.
+        leg_mpc_.reset({(out.force.l_f + left.spring.fs) * std::cos(left.alpha),
+                        (out.force.r_f + right.spring.fs) * std::cos(right.alpha)});
+    }
     if (executed != chassis_fsm::normal || out.fsm_next != chassis_fsm::normal)
     {
         l_contact_.off_timer.reset();

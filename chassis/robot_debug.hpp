@@ -1,6 +1,7 @@
 #pragma once
 
 #include "robot_types.hpp"
+#include "tinympc/leg_mpc.hpp"
 
 #include <cstdint>
 
@@ -22,12 +23,13 @@ struct leg_lqr_debug
     float obs[4]{}; // roll, droll, projected hip midpoint H, dH.
     float ref[4]{};
     float support_force[2]{}; // Total support before spring subtraction (N).
-    bool active = false; // True when leg LQR ran in NORMAL or AIRBORNE this cycle.
+    bool active = false; // True when leg LQR computed support this cycle.
 };
 
 struct control_debug
 {
     leg_lqr_debug leg_lqr{};
+    tinympc::mpc_diag leg_mpc{};
     pid_debug l_len{};
     pid_debug r_len{};
     pid_debug l_phi{};

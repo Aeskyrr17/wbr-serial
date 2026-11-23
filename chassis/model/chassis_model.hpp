@@ -17,7 +17,7 @@ inline constexpr float body_mass = 14.0f;
 inline constexpr float spring_force = 450.0f;
 inline constexpr float spring_d1 = 0.03f;
 inline constexpr float spring_d2 = 0.05f;
-inline constexpr float spring_angle = 0.2164f;
+inline constexpr float spring_angle = 0.220906f; // 几何法气弹簧解算角度
 
 // Equilibrium alpha = a0 + a1 * length + a2 * length^2, rad (length in m).
 inline constexpr float alpha_eq[3] = {0.280918f, -1.101757f, 1.232768f};

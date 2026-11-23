@@ -14,5 +14,9 @@ if(BOARD STREQUAL "h723_mc02")
         ${CMAKE_CURRENT_SOURCE_DIR}/command/cmd.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/command/control_map.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/model/pendulum.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/tinympc/leg_mpc.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/tinympc/solver/tiny_mpc.c
     )
+    set_property(SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/tinympc/solver/tiny_mpc.c
+        TARGET_DIRECTORY ${PROJECT_NAME} PROPERTY COMPILE_OPTIONS -O2)
 endif()

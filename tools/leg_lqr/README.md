@@ -1,6 +1,7 @@
 # 腿长与 Roll LQR
 
-只替换 NORMAL 的腿长和 roll PID。SPIN、FLATTEN、NEUTRAL 保留原 PID；原十状态、四力矩平衡 LQR 和 phi 控制路径保持不变。
+这套 LQR 在 AIRBORNE 的支撑力分支使用，并作为 NORMAL 腿部 MPC 的回退控制器。
+四力矩平衡 LQR 单独计算轮力矩和等效髋力矩。
 
 ## 模型与参数
 
@@ -63,7 +64,9 @@ force.r_f = support[1]/cos(right.alpha) - right.spring.fs
 
 上述 `force.l_f/r_f` 是当前固件 `virtual_force` 的转换前虚拟腿力字段。Python 模型内部仍使用 `F_N_left/F_N_right` 表示总支撑力，不是反馈 `normal_force`：模型的 cos(roll) 单独处理横滚投影；送入 VMC 前除以各腿的 cos(alpha)，换回轴向力，再扣除弹簧支撑。重力只加一次，不再叠加旧 `gravity_feedforward`。VMC 转换并限幅后，四关节目标写入 `motor_cmd` 的 `l_tj1/l_tj4/r_tj1/r_tj4`（Nm）。这个映射适用于站立小倾角，现有电机力矩限幅保留；未新增控制开关或观测器限制。
 
-观察 `dbg.chassis.control.leg_lqr.obs/ref` 和 `support_force`。 RELAX 也每周期更新这些值：参考由当前腿长命令换算、参考速度取0，支撑力仅为计算预览，不写入任何执行器输出；`active=false`。`active` 只标记本周期是否运行新控制器，不是使能开关；NORMAL 下原 l_len/r_len/roll PID 快照应为 inactive。
+可观察 `dbg.chassis.control.leg_lqr.obs/ref` 和 `support_force`。NORMAL 在这些字段记录 MPC
+使用的观测、参考和总支撑力，`active` 仅在本周期实际执行 LQR 回退时为 true。RELAX
+将参考速度设为 0，记录 LQR 预览，`active=false`。
 
 数值稳定性只验证模型；实际惯量、阻尼和接地条件仍需实车验证。
 

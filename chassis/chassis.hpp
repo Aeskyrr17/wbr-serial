@@ -12,6 +12,7 @@
 #include "robot_types.hpp"
 #include "ramp.hpp"
 #include "timer.hpp"
+#include "tinympc/leg_mpc.hpp"
 #include "tuning.hpp"
 
 #include <array>
@@ -89,6 +90,7 @@ private:
     void run_airborne(const inputs& in, step_out& out) noexcept;
     void update_leg_pid(const inputs& in, step_out& out) noexcept;
     void update_leg_lqr(const inputs& in, step_out& out) noexcept;
+    void update_leg_mpc(const inputs& in, step_out& out) noexcept;
     void update_balance(const inputs& in, step_out& out,
                         lqr_mode mode, float alpha_trim) noexcept;
     offground_state is_offground(const leg_state& left, const leg_state& right) const noexcept;
@@ -98,6 +100,7 @@ private:
     odometry odom_{};
     lqr lqr_{};
     leg_lqr leg_lqr_{};
+    tinympc::leg_mpc leg_mpc_{};
     control::pid l_len_;
     control::pid r_len_;
     control::pid roll_;

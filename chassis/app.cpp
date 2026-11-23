@@ -164,7 +164,7 @@ void run_control(ULONG) noexcept
         start_status = TX_NOT_DONE;
         return;
     }
-    controller control{};
+    static controller control{}; // Keep the MPC workspace off the control thread stack.
     chassis_state state{};
     cmd_frame frame{};
     imu::attitude::state imu{};

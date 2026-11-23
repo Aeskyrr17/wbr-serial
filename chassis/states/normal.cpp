@@ -8,8 +8,13 @@ void controller::run_normal(const inputs& in, step_out& out) noexcept
     const auto& left = in.left;
     const auto& right = in.right;
     const auto mode = (left.len + right.len) * 0.5f > cfg::Lswitch ? lqr_mode::high : lqr_mode::low;
+    update_leg_mpc(in, out);
+    if (out.fsm_next == chassis_fsm::relax)
+    {
+        reset_phi_control();
+        return;
+    }
     update_balance(in, out, mode, tuning.alpha_trim);
-    update_leg_lqr(in, out);
     
     ++settle_count_;
     out.v_cmd_enabled = settle_count_ >= 500U;// 进入normal后500ms后才允许速度控制

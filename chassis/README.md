@@ -1,19 +1,24 @@
 # 轮腿底盘应用
 
 H723 的 `app_start` 创建底盘控制线程和遥控命令线程。控制线程启动 BMI088 姿态服务、
-注册电机和启动 CAN，执行反馈采样、双 LQR、VMC 和电机命令；命令线程轮询 PS2 并生成运动命令。
+注册电机和启动 CAN，执行反馈采样、底盘控制、VMC 和电机命令；命令线程轮询 PS2 并生成运动命令。
 两线程使用 `msg` 最新值交换命令和底盘状态。IOC 和板级配置沿用模板；
 应用绑定见 `peripherals.hpp`。F407 不编译此底盘应用。
 
 应用持有静态 `imu_topic`，通过 `imu::start_bmi088(imu_topic)` 启动服务，再订阅该话题。
 话题在固件运行期间保持有效，初始化由 IMU 服务完成。
 
-- `chassis.cpp`、`states/`：控制主流程、公共控制函数和各状态实现；NORMAL 同时执行平衡 LQR 与腿高/横滚 LQR，SPIN 使用腿长及横滚 PID。
-- `lqr.hpp`、`leg_lqr.hpp`：两套控制器；`model/` 中的系数取自旧工作区当前内容，普通构建不生成或修改它们。
+- `chassis.cpp`、`states/`：控制主流程、公共控制函数和各状态实现；NORMAL 使用平衡 LQR 与腿高/横滚 MPC，SPIN 使用腿长及横滚 PID。
+- `lqr.hpp`、`leg_lqr.hpp`、`tinympc/`：平衡 LQR、腿部 LQR 和腿部 MPC。系数由模型工具显式生成。
 - `app.cpp`、`peripherals.hpp` 和 `command/`：应用启动、设备绑定、PS2 命令、位置保持与失联行为。
 - `model/pendulum.cpp`、`model/vmc.hpp`、`model/spring.hpp`、`odometry.hpp`：虚拟腿、弹簧和里程计。
 
 控制输出分为两层：`virtual_force` 包含转换前的等效髋力矩 `l_tp/r_tp`（Nm）和主动腿轴向力 `l_f/r_f`（N），由状态函数写入 `step_out.force`，作为 VMC 输入；`motor_cmd` 包含轮力矩 `l_tw/r_tw` 和四个关节力矩 `l_tj1/l_tj4/r_tj1/r_tj4`（均为 Nm），轮力矩由状态函数写入 `step_out.motor`，关节力矩由 VMC 转换并限幅。
+
+NORMAL 的 [腿高/横滚 MPC](../tools/tinympc/README.md) 默认每 10 ms 求解一次，期间保持总支撑力。
+每个底盘周期按当前腿角和气弹簧状态换算主动轴向力。求解失败时以腿部 LQR 回退并继续限制总支撑力及其变化量。
+可观察 `dbg.chassis.control.leg_mpc` 的求解状态、耗时和回退次数。状态与支撑力仍记录在 `control.leg_lqr`，
+其中 `active` 表示本周期腿部 LQR 实际参与计算。
 
 `controller::step()` 返回 `void`，通过 `motor_cmd& output` 和 `chassis_state& state` 分别输出本轮电机目标与底盘状态。`app.cpp` 对轮力矩做方向和电流换算后交给电机，并通过 `msg` 发布底盘状态。
 
