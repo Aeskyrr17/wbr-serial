@@ -191,7 +191,7 @@ void controller::run_state(chassis_fsm executed, const inputs& in,
     case chassis_fsm::airborne:
         run_airborne(in, out);
         break;
-    case chassis_fsm::spring_test:
+    case chassis_fsm::spring_test: //! 气弹簧测试用
         out.force.l_f = -in.left.spring.fs;
         break;
     default:
